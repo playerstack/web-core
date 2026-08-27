@@ -1,11 +1,11 @@
-# Contributing to @playerstack/core
+# Contributing to @playerstack/web-core
 
 Thanks for your interest in contributing!
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/playerstack/core.git
+git clone https://github.com/playerstack/web-core.git
 cd core
 npm install
 ```

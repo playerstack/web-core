@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Report a bug in @playerstack/core.
+description: Report a bug in @playerstack/web-core.
 labels: ["bug"]
 body:
   - type: markdown
@@ -31,7 +31,7 @@ body:
       label: Steps To Reproduce
       description: Minimal steps to reproduce the behavior.
       placeholder: |
-        1. Install @playerstack/core@0.2.5
+        1. Install @playerstack/web-core@0.2.5
         2. Call `getSDK(HLS_SDK_URL, 'Hls')`
         3. Observe error in console...
     validations:
@@ -52,7 +52,7 @@ body:
       label: Environment
       description: Relevant environment details.
       value: |
-        - @playerstack/core version:
+        - @playerstack/web-core version:
         - Node version:
         - Browser (if applicable):
         - OS:

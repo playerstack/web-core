@@ -1,5 +1,5 @@
 /**
- * Public barrel for the `@playerstack/core/styles` subpath (Req 11.1).
+ * Public barrel for the `@playerstack/web-core/styles` subpath (Req 11.1).
  *
  * Re-exports the Design_Tokens, the pure token<->CSS-variable and
  * state<->attribute helpers, and the Style_Auto_Injection API, plus the public

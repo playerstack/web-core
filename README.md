@@ -1,23 +1,23 @@
-# @playerstack/core
+# @playerstack/web-core
 
-[![npm version](https://img.shields.io/npm/v/@playerstack/core.svg)](https://www.npmjs.com/package/@playerstack/core)
-[![Test Coverage](https://img.shields.io/codecov/c/github/playerstack/core.svg)](https://codecov.io/gh/playerstack/core)
+[![npm version](https://img.shields.io/npm/v/@playerstack/web-core.svg)](https://www.npmjs.com/package/@playerstack/web-core)
+[![Test Coverage](https://img.shields.io/codecov/c/github/playerstack/web-core.svg)](https://codecov.io/gh/playerstack/web-core)
 [![License](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-blue.svg)](./LICENSE.md)
 
 Framework-agnostic media engine for video and audio playback. Supports HLS, DASH, FLV and native HTML5 media formats.
 
-This package provides the core playback logic used by framework-specific wrappers like [`@playerstack/reactjs`](https://github.com/playerstack/reactjs).
+This package provides the core playback logic used by framework-specific wrappers like [`@playerstack/reactjs-video`](https://github.com/playerstack/reactjs-video).
 
 ## Installation
 
 ```bash
-npm install @playerstack/core
+npm install @playerstack/web-core
 ```
 
 ## Quick Start
 
 ```ts
-import { MediaEngine } from '@playerstack/core';
+import { MediaEngine } from '@playerstack/web-core';
 
 const video = document.querySelector('video')!;
 const engine = new MediaEngine(video, {
@@ -50,23 +50,23 @@ These subpaths have zero browser global dependencies and are safe to use in Reac
 
 | Subpath | Description |
 |---------|-------------|
-| `@playerstack/core/hooks` | Shared React hooks (useChapters, useAutoHide, etc.) |
-| `@playerstack/core/patterns` | `canPlay`, format extension regex |
-| `@playerstack/core/chapters` | `computeChapterSegments`, `getChapterAtTime` |
-| `@playerstack/core/heatmap` | `generateHeatmapPath` |
-| `@playerstack/core/i18n` | `getTranslations`, locale data |
-| `@playerstack/core/keyboard` | `eventsKeyCodes`, key mappings |
-| `@playerstack/core/live-dvr` | `computeLiveDVRState`, `formatLiveOffset` |
-| `@playerstack/core/slider` | `getTimeFromSliderPosition`, slider math |
-| `@playerstack/core/player-state` | `playerStateInitial`, state reducers |
-| `@playerstack/core/quality` | `getRecommendedVideoQuality` (pure function) |
-| `@playerstack/core/reducer` | `createTypedReducer` factory |
-| `@playerstack/core/ui` | `buildIconProps`, `settingsInitialState` |
-| `@playerstack/core/adapters` | Platform adapter type definitions |
-| `@playerstack/core/utils/format` | `formatTime`, `indexBy`, `omit` |
-| `@playerstack/core/utils/env` | `isTestEnv`, `enableStubOn` |
-| `@playerstack/core/utils/captions` | `parseVTTCaptions`, `getActiveCues`, `hexToRgba` |
-| `@playerstack/core/utils/vtt-sprite` | `parseSpriteVTT`, `timeCodeToSeconds` |
+| `@playerstack/web-core/hooks` | Shared React hooks (useChapters, useAutoHide, etc.) |
+| `@playerstack/web-core/patterns` | `canPlay`, format extension regex |
+| `@playerstack/web-core/chapters` | `computeChapterSegments`, `getChapterAtTime` |
+| `@playerstack/web-core/heatmap` | `generateHeatmapPath` |
+| `@playerstack/web-core/i18n` | `getTranslations`, locale data |
+| `@playerstack/web-core/keyboard` | `eventsKeyCodes`, key mappings |
+| `@playerstack/web-core/live-dvr` | `computeLiveDVRState`, `formatLiveOffset` |
+| `@playerstack/web-core/slider` | `getTimeFromSliderPosition`, slider math |
+| `@playerstack/web-core/player-state` | `playerStateInitial`, state reducers |
+| `@playerstack/web-core/quality` | `getRecommendedVideoQuality` (pure function) |
+| `@playerstack/web-core/reducer` | `createTypedReducer` factory |
+| `@playerstack/web-core/ui` | `buildIconProps`, `settingsInitialState` |
+| `@playerstack/web-core/adapters` | Platform adapter type definitions |
+| `@playerstack/web-core/utils/format` | `formatTime`, `indexBy`, `omit` |
+| `@playerstack/web-core/utils/env` | `isTestEnv`, `enableStubOn` |
+| `@playerstack/web-core/utils/captions` | `parseVTTCaptions`, `getActiveCues`, `hexToRgba` |
+| `@playerstack/web-core/utils/vtt-sprite` | `parseSpriteVTT`, `timeCodeToSeconds` |
 
 ### Web-only subpaths (require browser globals)
 
@@ -74,32 +74,32 @@ These subpaths use `window`, `document`, `navigator`, or load external scripts. 
 
 | Subpath | Reason |
 |---------|--------|
-| `@playerstack/core` (main) | Re-exports everything including DOM modules |
-| `@playerstack/core/constants` | Evaluates `navigator`/`window` at load |
-| `@playerstack/core/engine` | Full DOM dependency (`HTMLMediaElement`) |
-| `@playerstack/core/utils/cookie` | Uses `document.cookie` |
-| `@playerstack/core/utils/device` | Evaluates `window`/`navigator` at load |
-| `@playerstack/core/utils/sdk` | Uses `window` + `load-script` |
-| `@playerstack/core/utils/media` | Uses `window.MediaStream`, `document` |
+| `@playerstack/web-core` (main) | Re-exports everything including DOM modules |
+| `@playerstack/web-core/constants` | Evaluates `navigator`/`window` at load |
+| `@playerstack/web-core/engine` | Full DOM dependency (`HTMLMediaElement`) |
+| `@playerstack/web-core/utils/cookie` | Uses `document.cookie` |
+| `@playerstack/web-core/utils/device` | Evaluates `window`/`navigator` at load |
+| `@playerstack/web-core/utils/sdk` | Uses `window` + `load-script` |
+| `@playerstack/web-core/utils/media` | Uses `window.MediaStream`, `document` |
 
 ### Usage examples
 
 **Web packages** (backward compatible):
 ```ts
 // Main entry still works for web
-import { formatTime, IS_IOS, getSDK } from '@playerstack/core';
+import { formatTime, IS_IOS, getSDK } from '@playerstack/web-core';
 
 // Granular imports (better tree-shaking)
-import { formatTime } from '@playerstack/core/utils/format';
-import { IS_IOS } from '@playerstack/core/constants';
+import { formatTime } from '@playerstack/web-core/utils/format';
+import { IS_IOS } from '@playerstack/web-core/constants';
 ```
 
 **React Native packages** (must use granular subpaths):
 ```ts
-import { formatTime, indexBy } from '@playerstack/core/utils/format';
-import { getTranslations } from '@playerstack/core/i18n';
-import { computeChapterSegments } from '@playerstack/core/chapters';
-import { useChapters, useAutoHide } from '@playerstack/core/hooks';
+import { formatTime, indexBy } from '@playerstack/web-core/utils/format';
+import { getTranslations } from '@playerstack/web-core/i18n';
+import { computeChapterSegments } from '@playerstack/web-core/chapters';
+import { useChapters, useAutoHide } from '@playerstack/web-core/hooks';
 ```
 
 ## Features
@@ -164,13 +164,13 @@ new MediaEngine(element: HTMLMediaElement, config?: MediaEngineConfig)
 ### Utilities
 
 ```ts
-import { formatTime, canPlay, isDesktop, isMobile } from '@playerstack/core/utils';
+import { formatTime, canPlay, isDesktop, isMobile } from '@playerstack/web-core/utils';
 ```
 
 ### i18n
 
 ```ts
-import { getTranslations } from '@playerstack/core/i18n';
+import { getTranslations } from '@playerstack/web-core/i18n';
 
 const t = getTranslations('es');
 console.log(t.play); // "Reproducir"
@@ -207,7 +207,7 @@ interface MediaEngineConfig {
 
 This package is consumed by framework-specific wrappers:
 
-- [`@playerstack/reactjs`](https://github.com/playerstack/reactjs) — React wrapper
+- [`@playerstack/reactjs-video`](https://github.com/playerstack/reactjs-video) — React wrapper
 
 More wrappers coming: Vue, Svelte, Solid, React Native, etc.
 

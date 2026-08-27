@@ -11,7 +11,7 @@ import * as ui from '@ui/index';
 import * as styles from '@styles/index';
 import * as adapters from '@adapters/index';
 
-describe('@playerstack/core/ui barrel', () => {
+describe('@playerstack/web-core/ui barrel', () => {
   it('re-exports the base element, registration and request/response core as callables', () => {
     expect(typeof ui.PlayerstackElement).toBe('function');
     expect(typeof ui.registerPlayerstackElements).toBe('function');
@@ -60,7 +60,7 @@ describe('@playerstack/core/ui barrel', () => {
   });
 });
 
-describe('@playerstack/core/styles barrel', () => {
+describe('@playerstack/web-core/styles barrel', () => {
   it('re-exports the design tokens and the pure token/state helpers', () => {
     expect(styles.DESIGN_TOKENS).toBeDefined();
     expect(typeof styles.tokenToCssVarName).toBe('function');
@@ -76,7 +76,7 @@ describe('@playerstack/core/styles barrel', () => {
   });
 });
 
-describe('@playerstack/core/adapters/framework barrel', () => {
+describe('@playerstack/web-core/adapters/framework barrel', () => {
   it('re-exports the DOM framework adapter and the UI element binding table', () => {
     expect(adapters.domFrameworkAdapter).toBeDefined();
     expect(typeof adapters.domFrameworkAdapter.syncAttribute).toBe('function');

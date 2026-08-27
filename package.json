@@ -1,5 +1,5 @@
 {
-  "name": "@playerstack/core",
+  "name": "@playerstack/web-core",
   "version": "0.3.2-alpha.1",
   "description": "Framework-agnostic media engine for video and audio playback with HLS, DASH, FLV and native formats",
   "main": "dist/cjs/index.js",
@@ -237,14 +237,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/playerstack/core.git"
+    "url": "git+https://github.com/playerstack/web-web-core.git"
   },
   "author": "Oscar Garces (https://github.com/soyvillareal)",
   "license": "SEE LICENSE IN LICENSE.md",
   "bugs": {
-    "url": "https://github.com/playerstack/core/issues"
+    "url": "https://github.com/playerstack/web-core/issues"
   },
-  "homepage": "https://github.com/playerstack/core#readme",
+  "homepage": "https://github.com/playerstack/web-core#readme",
   "dependencies": {
     "load-script": "^1.0.0"
   },

@@ -1,5 +1,5 @@
 /**
- * Public barrel for the `@playerstack/core/adapters/framework` subpath (Req 8.1, 11.1).
+ * Public barrel for the `@playerstack/web-core/adapters/framework` subpath (Req 8.1, 11.1).
  *
  * Re-exports the framework-agnostic adapter surface a framework binding needs:
  * the reference DOM-backed `domFrameworkAdapter`, the `UI_ELEMENT_BINDINGS` table

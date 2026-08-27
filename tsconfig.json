@@ -20,8 +20,8 @@
     "paths": {
       "@*": ["./src/*"],
       "@typings/*": ["./src/types/*"],
-      "@playerstack/core": ["./src/index.ts"],
-      "@playerstack/core/*": ["./src/*"]
+      "@playerstack/web-core": ["./src/index.ts"],
+      "@playerstack/web-core/*": ["./src/*"]
     }
   },
   "include": ["src/**/*.ts"],

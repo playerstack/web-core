@@ -1,5 +1,5 @@
 /**
- * Public barrel for the `@playerstack/core/ui` subpath (Req 1.1, 11.1).
+ * Public barrel for the `@playerstack/web-core/ui` subpath (Req 1.1, 11.1).
  *
  * Re-exports the UI_Layer surface a consumer needs to build a player without a
  * framework: the base `PlayerstackElement`, the idempotent registration entry point
