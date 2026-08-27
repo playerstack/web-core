@@ -1,6 +1,6 @@
 {
   "name": "@playerstack/web-core",
-  "version": "0.3.2-alpha.1",
+  "version": "0.1.0",
   "description": "Framework-agnostic media engine for video and audio playback with HLS, DASH, FLV and native formats",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
