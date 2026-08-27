@@ -1,0 +1,67 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`compileTokensToCss snapshot compiles the default Design_Tokens under :host (locked snapshot) 1`] = `
+":host {
+  --playerstack-color-accent: #ff375f;
+  --playerstack-color-accent-hover: #ff5c7c;
+  --playerstack-color-bg: #000000;
+  --playerstack-color-fg: #ffffff;
+  --playerstack-color-muted: rgba(255, 255, 255, 0.62);
+  --playerstack-color-control-bg: rgba(0, 0, 0, 0.55);
+  --playerstack-color-control-fg: #ffffff;
+  --playerstack-color-control-hover: rgba(255, 255, 255, 0.16);
+  --playerstack-color-overlay: rgba(0, 0, 0, 0.45);
+  --playerstack-color-track: rgba(255, 255, 255, 0.28);
+  --playerstack-color-track-buffered: rgba(255, 255, 255, 0.45);
+  --playerstack-color-focus-ring: rgba(255, 55, 95, 0.75);
+  --playerstack-space-xs: 4px;
+  --playerstack-space-sm: 8px;
+  --playerstack-space-md: 12px;
+  --playerstack-space-lg: 16px;
+  --playerstack-space-xl: 24px;
+  --playerstack-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --playerstack-font-size-sm: 12px;
+  --playerstack-font-size-md: 14px;
+  --playerstack-font-size-lg: 18px;
+  --playerstack-font-weight-normal: 400;
+  --playerstack-font-weight-bold: 600;
+  --playerstack-radius-sm: 4px;
+  --playerstack-radius-md: 8px;
+  --playerstack-radius-lg: 12px;
+  --playerstack-radius-full: 9999px;
+}
+"
+`;
+
+exports[`compileTokensToCss snapshot compiles the default Design_Tokens under :root (locked snapshot) 1`] = `
+":root {
+  --playerstack-color-accent: #ff375f;
+  --playerstack-color-accent-hover: #ff5c7c;
+  --playerstack-color-bg: #000000;
+  --playerstack-color-fg: #ffffff;
+  --playerstack-color-muted: rgba(255, 255, 255, 0.62);
+  --playerstack-color-control-bg: rgba(0, 0, 0, 0.55);
+  --playerstack-color-control-fg: #ffffff;
+  --playerstack-color-control-hover: rgba(255, 255, 255, 0.16);
+  --playerstack-color-overlay: rgba(0, 0, 0, 0.45);
+  --playerstack-color-track: rgba(255, 255, 255, 0.28);
+  --playerstack-color-track-buffered: rgba(255, 255, 255, 0.45);
+  --playerstack-color-focus-ring: rgba(255, 55, 95, 0.75);
+  --playerstack-space-xs: 4px;
+  --playerstack-space-sm: 8px;
+  --playerstack-space-md: 12px;
+  --playerstack-space-lg: 16px;
+  --playerstack-space-xl: 24px;
+  --playerstack-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --playerstack-font-size-sm: 12px;
+  --playerstack-font-size-md: 14px;
+  --playerstack-font-size-lg: 18px;
+  --playerstack-font-weight-normal: 400;
+  --playerstack-font-weight-bold: 600;
+  --playerstack-radius-sm: 4px;
+  --playerstack-radius-md: 8px;
+  --playerstack-radius-lg: 12px;
+  --playerstack-radius-full: 9999px;
+}
+"
+`;

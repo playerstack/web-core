@@ -1,0 +1,3 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`playerstack-ad-overlay Markup_Contract + ARIA (Req 1.5, 5.1, 5.2, 5.3) matches the rendered shadow markup snapshot 1`] = `"<div part="ad-overlay" style="display: none;"><div part="ad-banner-wrapper" style="display: none;"><div part="ad-banner" role="link"><img part="ad-icon" alt="" style="display: none;"><div part="ad-info"><span part="ad-title"></span><span part="ad-url"></span></div><button part="ad-button" type="button"></button></div><span part="ad-sponsored"></span></div><div part="ad-click"></div><button part="ad-skip-button" type="button" aria-label="Skip ad" disabled=""><span part="ad-skip-countdown"></span><img part="ad-skip-preview" alt="" draggable="false" style="display: none;"></button></div>"`;

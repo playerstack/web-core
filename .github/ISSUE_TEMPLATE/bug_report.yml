@@ -1,0 +1,68 @@
+name: 🐛 Bug Report
+description: Report a bug in @playerstack/core.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. Please fill out the sections below so we can reproduce and fix the issue.
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current Behavior
+      description: A concise description of what is happening.
+      placeholder: "When I call getSDK() with..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: A concise description of what should happen instead.
+      placeholder: "The SDK should load once and..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps To Reproduce
+      description: Minimal steps to reproduce the behavior.
+      placeholder: |
+        1. Install @playerstack/core@0.2.5
+        2. Call `getSDK(HLS_SDK_URL, 'Hls')`
+        3. Observe error in console...
+    validations:
+      required: true
+
+  - type: input
+    id: reproduction-link
+    attributes:
+      label: Reproduction Link
+      description: Link to a minimal reproduction (CodeSandbox, StackBlitz, GitHub repo).
+      placeholder: "https://codesandbox.io/s/..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Relevant environment details.
+      value: |
+        - @playerstack/core version:
+        - Node version:
+        - Browser (if applicable):
+        - OS:
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Additional Information
+      description: Anything else that might help (logs, screenshots, related issues).
+    validations:
+      required: false

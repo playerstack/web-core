@@ -1,0 +1,3 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`playerstack-chapters Markup_Contract (Req 5.1, 5.2, 5.3) matches the rendered shadow markup snapshot 1`] = `"<div part="chapters"><div part="chapter-title">Middle</div></div>"`;

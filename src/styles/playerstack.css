@@ -1,0 +1,5053 @@
+/**
+ * playerstack.css — the foundation of the PlayerStack Style_Layer (Req 3.1, 3.2).
+ *
+ * ROLE
+ *   Standard CSS (NO CSS-in-JS, no styled-components) injected ONCE globally into
+ *   `document.head` via Style_Auto_Injection. There is NO Shadow DOM: every PlayerStack
+ *   UI_Element renders into its own light DOM, so rules target the element tags
+ *   (`playerstack-media-controller`, `playerstack-play-button`, ...) plus their `[part]`
+ *   descendants directly rather than `:host`/`::slotted`. To avoid leaking into the host
+ *   page, the baseline reset is SCOPED to `playerstack-media-controller` (never a global
+ *   `all: initial`). This file provides the base primitives; the full per-component
+ *   visual rules are ported later (tasks 14.6 / 15.4).
+ *
+ * CONVENTIONS
+ *   - Theming: every themed value reads a `--playerstack-<category>-<name>`
+ *     CSS_Custom_Property with a sensible fallback, e.g.
+ *     `var(--playerstack-color-accent, #ff375f)`. When a consumer declares the variable
+ *     (in :root or on the host) it wins; otherwise the Design_Token fallback applies
+ *     (Req 4.3, 4.4). Variable names match the token ids in `src/styles/tokens.ts`
+ *     exactly: color (accent, accent-hover, bg, fg, muted, control-bg, control-fg,
+ *     control-hover, overlay, track, track-buffered, focus-ring), space (xs, sm, md,
+ *     lg, xl), font (family-base, size-sm/md/lg, weight-normal/bold), radius (sm, md,
+ *     lg, full).
+ *   - State: components reflect their state as `data-*` attributes on the element host /
+ *     parts (Req 3.3). Style_Layer selects state-dependent styles ONLY through attribute
+ *     selectors over those data-* attributes (Req 3.4), e.g.
+ *     `playerstack-play-button[data-playing] ...`, `playerstack-volume[data-muted] ...`.
+ *   - Style hooks: sub-elements expose stable `part` names so skins can target them.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Reset — neutralize inherited styles from the host page (Req 3.6).          */
+/*                                                                            */
+/* WITHOUT a shadow boundary a global `all: initial` reset would nuke          */
+/* inheritance for the WHOLE page, so the baseline is SCOPED to the root       */
+/* player host `playerstack-media-controller` (and the audio host). We         */
+/* re-establish only the few defaults the player relies on, all sourced from   */
+/* tokens; these inherit down to the composed `playerstack-*` children.        */
+/* -------------------------------------------------------------------------- */
+playerstack-media-controller {
+  box-sizing: border-box;
+  display: block;
+  position: relative;
+  font-family: var(
+    --playerstack-font-family-base,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif
+  );
+  font-size: var(--playerstack-font-size-md, 14px);
+  font-weight: var(--playerstack-font-weight-normal, 400);
+  line-height: 1.4;
+  color: var(--playerstack-color-fg, #ffffff);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Prevent double-tap zoom / text selection flicker on touch controls. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Normalize box-sizing for the player subtree (scoped to the player host). */
+playerstack-media-controller *,
+playerstack-media-controller *::before,
+playerstack-media-controller *::after {
+  box-sizing: border-box;
+}
+
+/* An element host that reflects data-hidden collapses entirely (Req 3.3, 3.4). */
+playerstack-media-controller [data-hidden],
+playerstack-media-controller[data-hidden] {
+  display: none;
+}
+
+/* Root player host = the positioned STAGE (Req 5.1, 5.3). In the light-DOM model the
+   controller element itself is the stage: it is `position: relative` so its composed
+   `playerstack-*` children (control bar + absolutely-positioned overlays) resolve their
+   containing block against it. Ported from reactjs StyledPlayerSkin / StyledMobilePlayer-
+   Skin: an overflow-hidden surface with a light `#eee` fg and a soft text-shadow so
+   control glyphs/labels stay legible over bright video. `user-select: none` prevents
+   accidental text selection while scrubbing/tapping. The host is sized to fill whatever
+   box the consuming layer gives it (framework skins set the outer box). */
+playerstack-media-controller {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  color: #eee;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Mobile: additionally disable the 300ms tap delay + custom font stack (ported from */
+/* StyledMobilePlayerSkin) so touch controls respond immediately. */
+@media (max-width: 575px) {
+  playerstack-media-controller {
+    touch-action: manipulation;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+}
+
+/* Spinner keyframes ported from scopedReset (`playerstack-spinner`) + the mobile */
+/* spin animation. A single shared rotation keyframe drives every spinner glyph. */
+@keyframes playerstack-spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Base part primitives.                                                      */
+/* These give every UI_Element a consistent, token-driven starting point.     */
+/* -------------------------------------------------------------------------- */
+
+/* Buttons — reset native appearance, then apply token colors/radius/spacing. */
+[part~='button'],
+[part$='-button'] {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: var(--playerstack-space-sm, 8px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--playerstack-space-xs, 4px);
+  border: 0;
+  border-radius: var(--playerstack-radius-md, 8px);
+  background: transparent;
+  color: var(--playerstack-color-control-fg, #ffffff);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+/* NOTE: control buttons do NOT get a background wash on hover. The ORIGINAL `StyledGeneralButton`
+   only lifted the glyph opacity (0.8 -> 1) on hover/focus and kept the background transparent —
+   a grey rounded square behind the icon was never shown. The opacity lift lives in the ported
+   button block below (`[part$='-button']:hover { opacity: 1 }`), so no hover-background rule is
+   defined here. */
+
+/* Disabled buttons dim and stop receiving pointer events. */
+[part~='button'][disabled],
+[part~='button'][aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Icons inside parts scale to the surrounding font-size by default. This is the fallback for
+   icons NOT inside a control button (e.g. menu-item glyphs); control-button glyphs are sized
+   explicitly below to fill the 36px/54px button, matching the original which rendered the SVG
+   at the full button size via `buildIconProps` (36×36, 54×54 fullscreen). */
+[part='icon'],
+.icon {
+  width: 1.5em;
+  height: 1.5em;
+  display: inline-block;
+  fill: currentColor;
+  flex: none;
+  pointer-events: none;
+}
+
+/* The injected SVG glyph fills its `.icon` span (the serialized descriptor carries a
+   viewBox but no width/height, so it must be told to scale to the span box). */
+.icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* Sliders / tracks — progress and volume bars share the same primitives. */
+[part~='slider'] {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: var(--playerstack-space-md, 12px);
+  cursor: pointer;
+  touch-action: none;
+}
+
+[part='track'] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: var(--playerstack-space-xs, 4px);
+  border-radius: var(--playerstack-radius-full, 9999px);
+  background: var(--playerstack-color-track, rgba(255, 255, 255, 0.28));
+}
+
+/* Buffered range sits above the base track. */
+[part='track-buffered'] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--playerstack-color-track-buffered, rgba(255, 255, 255, 0.45));
+}
+
+/* Individual buffer range segments (fragmented buffer-mode). Each represents one contiguous
+   buffered TimeRange from the media element, positioned by inline left+width. Shares the same
+   color as the classic single bar so the visual is consistent regardless of mode. */
+[part='buffer-range'] {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--playerstack-color-track-buffered, rgba(255, 255, 255, 0.45));
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Hover highlight (YouTube-style seek preview): a tinted fill from the played position to the
+   hovered pointer position. Slightly lighter than the buffer bar so it's distinguishable.
+   Hidden by default (width: 0); positioned inline by the element's onPointerMove logic. */
+[part='track-hover'] {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--playerstack-color-track-hover, rgba(255, 255, 255, 0.2));
+  pointer-events: none;
+}
+
+/* Played / filled range uses the accent color. */
+[part='track-fill'] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: var(--playerstack-color-accent, #ff375f);
+  z-index: 1;
+}
+
+/* Draggable thumb. */
+[part='thumb'] {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--playerstack-space-md, 12px);
+  height: var(--playerstack-space-md, 12px);
+  border-radius: var(--playerstack-radius-full, 9999px);
+  background: var(--playerstack-color-accent, #ff375f);
+  z-index: 2;
+}
+
+/* Overlays — spinner / play-state / prevented-tip surfaces sit over the video. */
+[part~='overlay'] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--playerstack-color-overlay, rgba(0, 0, 0, 0.45));
+  color: var(--playerstack-color-fg, #ffffff);
+  padding: var(--playerstack-space-lg, 16px);
+}
+
+/* Control bar — the bottom cluster of controls. */
+[part='controls'] {
+  display: flex;
+  align-items: center;
+  gap: var(--playerstack-space-sm, 8px);
+  padding: var(--playerstack-space-sm, 8px) var(--playerstack-space-md, 12px);
+  background: var(--playerstack-color-control-bg, rgba(0, 0, 0, 0.55));
+}
+
+/* Time / label text uses the muted foreground and a compact size. */
+[part='time'],
+[part~='label'] {
+  color: var(--playerstack-color-muted, rgba(255, 255, 255, 0.62));
+  font-size: var(--playerstack-font-size-sm, 12px);
+  font-weight: var(--playerstack-font-weight-normal, 400);
+  white-space: nowrap;
+}
+
+/* Menus / panels (settings, context menu) share a rounded control surface. */
+[part~='menu'],
+[part~='panel'] {
+  background: var(--playerstack-color-control-bg, rgba(0, 0, 0, 0.55));
+  color: var(--playerstack-color-control-fg, #ffffff);
+  border-radius: var(--playerstack-radius-lg, 12px);
+  padding: var(--playerstack-space-sm, 8px);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Focus ring — accessible keyboard focus for every interactive part.         */
+/* -------------------------------------------------------------------------- */
+[part] :focus-visible,
+playerstack-media-controller:focus-visible,
+[part]:focus-visible {
+  outline: 2px solid var(--playerstack-color-focus-ring, rgba(255, 55, 95, 0.75));
+  outline-offset: 2px;
+}
+
+/* Remove the non-accessible default focus ring when focus-visible is supported. */
+[part]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* State-dependent styles — driven ONLY by data-* attribute selectors         */
+/* (Req 3.3, 3.4). A representative set of the hooks components will reflect.  */
+/* -------------------------------------------------------------------------- */
+
+/* Play button toggles between its play and pause glyphs by reflected state. `data-playing`
+   is reflected on the `playerstack-play-button` element host via `reflectState({ playing })`,
+   which sets the attribute to the STRING `"true"`/`"false"` (it is always PRESENT). So the
+   gate must key off the VALUE, not mere presence — a bare `[data-playing]` would match in both
+   states and hide a glyph permanently. `[data-playing="true"]` = playing (show pause glyph),
+   `[data-playing="false"]` = paused (show play glyph). */
+playerstack-play-button[data-playing='true'] .icon-play {
+  display: none;
+}
+playerstack-play-button[data-playing='false'] .icon-pause {
+  display: none;
+}
+
+/* Mute button swaps its glyph and dims the volume slider when muted. `data-muted` is reflected
+   on the `playerstack-volume` host as the always-present string `"true"`/`"false"`, so gate on
+   the value (see the play-button note above). */
+playerstack-volume[data-muted='true'] .icon-volume {
+  display: none;
+}
+playerstack-volume[data-muted='false'] .icon-muted {
+  display: none;
+}
+playerstack-volume[data-muted='true'] [part='track-fill'] {
+  opacity: 0.4;
+}
+
+/* Buffering / loading: reveal the spinner overlay while it is active. `data-loading` /
+   `data-buffering` are reflected on the `playerstack-spinner` host as ALWAYS-PRESENT strings
+   (`"true"`/`"false"`), and the element ALSO reflects a derived `data-active` = loading OR
+   buffering. Gate on the derived `data-active='true'` VALUE rather than the bare
+   `[data-buffering]`/`[data-loading]` (which matched BOTH states, since the attributes are
+   never removed). The element additionally toggles its own inline display, so this is a
+   CSS-only safeguard mirroring the same predicate. */
+playerstack-spinner[data-active='true'] [part='spinner'] {
+  display: flex;
+}
+[part='spinner'] {
+  display: none;
+  /* Ported from StyledOverlay: full-stage dark scrim centered flex. When `display:flex` is set
+     (via the active rule above) the spinner container covers the entire player and centers its
+     indicator child. */
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Ported from StyledSpinnerCircle: a 48px spinning border-ring. Only the left border is white;
+   the other three sides are faint translucent — producing the classic "loading arc" effect. */
+[part='spinner-indicator'] {
+  width: 48px;
+  height: 48px;
+  border-width: 3px;
+  border-style: solid;
+  border-top-color: rgba(255, 255, 255, 0.15);
+  border-bottom-color: rgba(255, 255, 255, 0.15);
+  border-right-color: rgba(255, 255, 255, 0.15);
+  border-left-color: #fff;
+  border-radius: 50%;
+  animation: playerstack-spinner 0.5s linear infinite;
+}
+
+/* Fullscreen / PiP buttons swap their enter/exit glyphs by reflected state. `data-fullscreen`
+   (on `playerstack-fullscreen-button`) and `data-pip` (on `playerstack-pip-button`) are
+   reflected as the always-present string `"true"`/`"false"`, so gate on the value. */
+playerstack-fullscreen-button[data-fullscreen='true'] .icon-enter-fullscreen,
+playerstack-pip-button[data-pip='true'] .icon-enter-pip {
+  display: none;
+}
+playerstack-fullscreen-button[data-fullscreen='false'] .icon-exit-fullscreen,
+playerstack-pip-button[data-pip='false'] .icon-exit-pip {
+  display: none;
+}
+
+/* Controls auto-hide: when the controller reflects hiding, fade the control bar AND the
+   progress slider out (the time-slider is a sibling of the bar, not a child, so it needs its
+   own fade — otherwise it stays visible while everything else hides). */
+playerstack-media-controller[data-hiding] .playerstack-controls,
+playerstack-media-controller[data-hiding] playerstack-time-slider {
+  opacity: 0;
+  pointer-events: none;
+}
+.playerstack-controls,
+playerstack-time-slider {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+/* AD MODE autohide: the ad progress bar must NOT fade away — it slides DOWN to the very bottom
+   edge and keeps running as a thin line (parity with the original `StyledAdTimeSliderWrapper`,
+   which animated `bottom: 35px -> -2px` with `cubic-bezier(0.4, 0, 1, 1)` on hiding). So during
+   an ad the time-slider stays fully opaque and interactive-less, and only its `bottom` animates.
+   This override wins over the generic fade above (more specific: adds `[data-ad-active]`). */
+playerstack-media-controller[data-ad-active] playerstack-time-slider {
+  opacity: 1 !important;
+  transition: bottom 0.25s cubic-bezier(0.4, 0, 1, 1);
+}
+playerstack-media-controller[data-ad-active][data-hiding] playerstack-time-slider {
+  opacity: 1;
+  bottom: -2px;
+}
+
+/* Respect reduced-motion preferences by removing transitions/animations. */
+@media (prefers-reduced-motion: reduce) {
+  playerstack-media-controller,
+  [part] {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ========================================================================== */
+/* Ported component styles (task 14.6, Req 21.2/21.3/21.4/21.5/21.10).        */
+/*                                                                            */
+/* These rules port the `reactjs` `*.styled.jsx`/`*.styled.js` visuals 1:1    */
+/* onto the Core Markup_Contract, keyed by `[part]` / `<tag>[data-*]`.        */
+/* styled-components `${({ prop }) => ...}` interpolations become data-*      */
+/* selectors (discrete states) or CSS custom properties (continuous values):  */
+/*   - isFullscreen  -> playerstack-media-controller[data-fullscreen] ...      */
+/*   - hiding        -> playerstack-media-controller[data-hiding] ...          */
+/*   - open/showing  -> <element-tag>[data-open] / [data-active]              */
+/* Desktop is the default; mobile lives under the SAME `max-width: 575px`     */
+/* breakpoint the reactjs skin used. Specific px/colors that carried no theme */
+/* token are kept literal to preserve pixel Visual_Parity (e.g. the skin's    */
+/* `#cb0e0b`/`#f00` progress red, control heights 36px/54px); themeable       */
+/* surfaces reuse the existing `--playerstack-*` tokens where they map.       */
+/* ========================================================================== */
+
+/* -------------------------------------------------------------------------- */
+/* Stage layout (light DOM). The `playerstack-media-controller` element IS the */
+/* positioned stage (see the root host rule above). Its composed children are  */
+/* real light-DOM descendants: the bottom control bar is wrapped by the skin   */
+/* in a `.playerstack-controls` div, while the overlay/slider element tags are */
+/* flat siblings pinned over the stage. The real <video> paints behind them.   */
+/* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* Control bar (ControlBar / Controls). The framework skin wraps ONLY the      */
+/* bottom-bar control elements in a `<div class="playerstack-controls">`, which */
+/* forms a single horizontal row pinned to the bottom of the stage. Ported     */
+/* from StyledControls (absolute bottom bar, fades on autohide) + StyledControl-*/
+/* Bar (centered flex row, 36px tall / 54px fullscreen).                       */
+/* -------------------------------------------------------------------------- */
+/* Ported from StyledControls (absolute bottom bar, fades on autohide) + StyledControlBar
+   (`display:flex; align-items:center; justify-content:center; width:100%; height:36px`, 54px
+   fullscreen). The clusters below carry the actual left/right alignment via `flex:1`, exactly
+   like the original StyledLeftItem/StyledRightItem, so `justify-content:center` on the bar is
+   preserved rather than the previous approximation `space-between`. */
+.playerstack-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 36px;
+  z-index: 11;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  background: transparent;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+/* StyledLeftItem / StyledRightItem: both are `flex:1` flex rows (so together they fill the
+   bar), left hugs the start with a 15px left margin, right hugs the end with a 15px right
+   margin. `white-space:nowrap` matches the original commonsStyles. */
+.playerstack-controls-left,
+.playerstack-controls-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.playerstack-controls-left {
+  justify-content: flex-start;
+  margin-left: 15px;
+}
+
+.playerstack-controls-right {
+  justify-content: flex-end;
+  margin-right: 15px;
+}
+
+/* Bottom vignette (StyledControlsBackdrop): a soft gradient behind the control bar so
+   glyphs/labels stay legible over bright content. Rendered as a stage-level pseudo layer
+   via the controller so it sits under the controls without an extra DOM node. */
+playerstack-media-controller::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 25%;
+  min-height: 60px;
+  pointer-events: none;
+  z-index: 4;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  transition: opacity 0.3s;
+}
+
+/* Hide the vignette while controls are hidden (mirrors the control-bar autohide). */
+playerstack-media-controller[data-hiding]::after {
+  opacity: 0;
+}
+
+/* The bottom-bar control element tags are wrapper Custom Elements whose visual box is
+   their inner `[part]`. Lay them out as inline-flex items that size to their content so
+   the row stays horizontal (the default `display:block` would break the bar). They live
+   inside `.playerstack-controls`; the time-slider is positioned separately (below). */
+.playerstack-controls playerstack-play-button,
+.playerstack-controls playerstack-volume,
+.playerstack-controls playerstack-play-time,
+.playerstack-controls playerstack-settings,
+.playerstack-controls playerstack-fullscreen-button,
+.playerstack-controls playerstack-pip-button,
+.playerstack-controls playerstack-live-indicator,
+.playerstack-controls playerstack-nav-buttons,
+playerstack-audio-controls {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  flex: 0 0 auto;
+}
+
+/* Overlay element tags are flat children of the controller and cover the whole stage
+   (their inner `[part]` is `position:absolute; inset:0` relative to THEIR host). Pin the
+   hosts over the stage rather than flowing them as bar items. Pointer events pass through
+   by default; each overlay re-enables them on its interactive parts. */
+playerstack-spinner,
+playerstack-play-state,
+playerstack-top-state,
+playerstack-prevented-tip,
+playerstack-ad-overlay,
+playerstack-double-tap,
+playerstack-heatmap,
+playerstack-context-menu,
+playerstack-sprite-preview,
+playerstack-live-ad {
+  position: absolute;
+  inset: 0;
+  display: block;
+  z-index: 5;
+  /* The overlay HOSTS stretch across the whole stage. If they kept the default
+     `pointer-events:auto` the topmost stacked overlay (e.g. the full-stage
+     `playerstack-context-menu` host, even with its inner menu hidden) would swallow every
+     click over the video — including the center play-state button. So overlay hosts are
+     click-through by default; each overlay re-enables pointer events ONLY on its own
+     interactive/visible part (e.g. `[part='play-state']` when showing, the ad skip button,
+     the context menu when open). */
+  pointer-events: none;
+}
+
+/* The center play-state layer ALWAYS captures clicks so that clicking anywhere on the video
+   toggles play/pause — exactly like the original `StyledPlayButton` (which stayed clickable at
+   `opacity:0` during playback, only its glyph faded out). The glyph's VISIBILITY is gated by
+   `data-showing` (opacity), but the click area stays active in both states: paused/ended shows
+   the big play/replay glyph, and during playback the transparent layer still toggles to pause.
+   `z-index:5` keeps it BELOW the control bar (`z-index:11`) and the time-slider (`z-index:12`),
+   so bottom-bar clicks are unaffected. */
+[part='play-state'] {
+  pointer-events: auto;
+}
+
+/* Re-enable pointer events on the OTHER overlays' interactive parts (their hosts are now
+   click-through). Each part is only visible/interactive in its active state, so this restores
+   clicking the prevented tip, the right-click context menu, the double-tap zones and the ad
+   click/skip affordances without the hosts swallowing clicks over the video. */
+playerstack-prevented-tip[data-active='true'] [part='prevented-tip'],
+playerstack-prevented-tip[data-mode='unmute'] [part='prevented-tip-clicked'],
+playerstack-context-menu[data-open] [part='context-menu'],
+[part='double-tap-left'],
+[part='double-tap-right'],
+[part='ad-click'],
+[part='ad-skip-button'] {
+  pointer-events: auto;
+}
+
+/* The seekable progress slider spans the full width just ABOVE the bottom control bar
+   (the reactjs skin placed the slider immediately above the 36px control row). */
+playerstack-time-slider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 36px;
+  z-index: 12;
+  display: block;
+}
+
+/* Fullscreen lifts the slider to clear the taller (54px) control bar. */
+playerstack-media-controller[data-fullscreen] playerstack-time-slider {
+  bottom: 54px;
+}
+
+/* Chapters read-out sits INLINE in the bottom control bar right after the play-time (parity
+   with the original StyledChapterIndicator, which appended the active chapter title next to the
+   time in the control row) — NOT an absolute stage corner. It only takes space when a chapter
+   is active (`data-active`), otherwise it collapses so the bar layout is unchanged. */
+playerstack-chapters {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+}
+
+/* Captions overlay host = a full-stage positioning context (the draggable `[part='captions']`
+   box positions itself by inline `left`/`top` percentages against it). Click-through so it never
+   blocks the video; the box itself re-enables pointer events for dragging. */
+playerstack-captions {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* Fullscreen grows the control bar height 36px -> 54px (isFullscreen). */
+playerstack-media-controller[data-fullscreen] .playerstack-controls {
+  height: 54px;
+}
+
+/* Autohide fades the controls out (Controls `hiding`). */
+playerstack-media-controller[data-hiding] .playerstack-controls {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Controls backdrop gradient (StyledControlsBackdrop) — a bottom vignette so */
+/* the controls stay readable over bright content. */
+[part='controls-backdrop'] {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(transparent 60%, rgba(0, 0, 0, 0.7) 100%);
+  transition: opacity 0.3s;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Buttons (StyledGeneralButton): the shared control button base.            */
+/* baseButtonStyles + normalButton(36) / fullscreenButton(54).               */
+/* -------------------------------------------------------------------------- */
+[part$='-button'],
+[part='play-button'],
+[part='mute-button'],
+[part='settings-button'] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.8;
+  border-radius: var(--playerstack-radius-md, 8px);
+  transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+/* Control-button glyphs fill the whole button (the original rendered the SVG at the full
+   36px/54px button size via `buildIconProps`; the glyph's own viewBox provides its visual
+   padding). Sizing the `.icon` span to the button box — rather than the 1.5em font default —
+   restores the original glyph scale that the 1.5em fallback shrank to ~21px. */
+[part$='-button'] .icon,
+[part='play-button'] .icon,
+[part='mute-button'] .icon,
+[part='settings-button'] .icon {
+  width: 100%;
+  height: 100%;
+}
+
+/* Fullscreen keeps the glyph filling the taller 54px button. */
+playerstack-media-controller[data-fullscreen] [part$='-button']:not([part='play-state-button']) .icon,
+playerstack-media-controller[data-fullscreen] [part='play-button'] .icon,
+playerstack-media-controller[data-fullscreen] [part='mute-button'] .icon,
+playerstack-media-controller[data-fullscreen] [part='settings-button'] .icon {
+  width: 100%;
+  height: 100%;
+}
+
+/* Hover/focus lift the icon opacity to full (baseButtonStyles). */
+[part$='-button']:hover,
+[part$='-button']:focus,
+[part='play-button']:hover,
+[part='play-button']:focus,
+[part='mute-button']:hover,
+[part='mute-button']:focus,
+[part='settings-button']:hover,
+[part='settings-button']:focus {
+  opacity: 1;
+}
+
+/* Disabled / fake-disabled buttons dim to the muted grey (baseButtonStyles). */
+[part$='-button'][disabled],
+[part$='-button'][aria-disabled='true'] {
+  cursor: not-allowed;
+  color: #a4a4a4;
+  opacity: 1;
+  pointer-events: none;
+}
+
+/* Fullscreen grows the standard control buttons 36 -> 54 (fullscreenButton). */
+playerstack-media-controller[data-fullscreen] [part$='-button']:not([part='play-state-button']),
+playerstack-media-controller[data-fullscreen] [part='play-button'],
+playerstack-media-controller[data-fullscreen] [part='mute-button'],
+playerstack-media-controller[data-fullscreen] [part='settings-button'] {
+  width: 54px;
+  height: 54px;
+}
+
+/* Icons never intercept pointer events (baseButtonStyles `& * { pointer-events: none }`). */
+[part] .icon,
+[part] svg {
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* PlayTime (StyledControlText + live badge/dot + chapter indicator).        */
+/* -------------------------------------------------------------------------- */
+[part='time'] {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 5px;
+  font-size: 13px;
+  line-height: 35px;
+  white-space: nowrap;
+  color: #fff;
+}
+
+[part='current-time'],
+[part='duration'] {
+  font-size: 13px;
+}
+
+/* Live badge/dot (StyledLiveBadge / StyledLiveDot). The `$atEdge` interpolation */
+/* maps to `:host([data-at-edge])`: at the edge the dot is red and text white,  */
+/* otherwise both are dimmed. */
+[part='live-indicator'] {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 6px;
+  margin: 0;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 36px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+[part='live-indicator']:hover {
+  color: #ffffff;
+}
+
+[part='live-dot'] {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: #888888;
+  transition: background 0.2s ease;
+}
+
+[part='live-indicator']:hover [part='live-dot'] {
+  background: #ff0000;
+}
+
+/* At-edge state (LiveDot/Badge `$atEdge` true). `data-at-edge` is reflected on the
+   `playerstack-live-indicator` host via `reflectState({ atEdge })` — present as the string
+   `"true"`/`"false"` whenever the indicator is live — so gate on the VALUE. */
+playerstack-live-indicator[data-at-edge='true'] [part='live-indicator'] {
+  color: #ffffff;
+}
+
+playerstack-live-indicator[data-at-edge='true'] [part='live-dot'] {
+  background: #ff0000;
+}
+
+/* "Live" text label (parity with the original badge text). Inherits the indicator color/size; a
+   small left gap separates it from the offset readout when both show. */
+[part='live-label'] {
+  font-size: 13px;
+  margin-right: 6px;
+}
+
+/* Chapter title read-out (StyledChapterIndicator): dim inline label. When a chapter is active
+   the title is prefixed with a ` · ` separator matching the original ` · {chapterTitle}`. */
+[part='chapters'],
+[part='chapter-title'] {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+playerstack-chapters[data-active='true'] [part='chapter-title']::before {
+  content: ' · ';
+}
+
+/* -------------------------------------------------------------------------- */
+/* Volume (StyledSliderWrapper / StyledSliderContainer + VolumeSlider).      */
+/* The hover-to-expand slider: the wrapper starts at width 0 and expands on   */
+/* hover of the volume control (mapped from the JS `sliderWith()` width via a  */
+/* fixed expanded width preserving the same reveal transition/easing).        */
+/* -------------------------------------------------------------------------- */
+[part='volume'] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  width: 0;
+  height: 36px;
+  transition: margin 0.2s cubic-bezier(0.4, 0, 1, 1), width 0.2s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Hide the volume slider entirely on small screens (SliderContainer @media). */
+@media (max-width: 575px) {
+  [part='volume'] {
+    display: none;
+  }
+}
+
+/* Reveal the slider on hover of the mute button or the volume region, or when */
+/* actively sliding (data-sliding). Expanded width mirrors the desktop reveal.  */
+[part='mute-button']:hover ~ [part='volume'],
+[part='volume']:hover,
+playerstack-media-controller[data-volume-sliding] [part='volume'] {
+  /* Expanded width from the original `sliderWidth(false)` = 55px. `overflow:visible` once
+     expanded so the thumb ball is never clipped at the ends (the collapsed state keeps
+     `overflow:hidden` for the width reveal). */
+  width: 55px;
+  overflow: visible;
+  transition: margin 0.2s cubic-bezier(0, 0, 0.2, 1), width 0.2s cubic-bezier(0, 0, 0.2, 1);
+}
+
+playerstack-media-controller[data-fullscreen] [part='volume'] {
+  height: 54px;
+}
+
+playerstack-media-controller[data-fullscreen][data-volume-sliding] [part='volume'],
+playerstack-media-controller[data-fullscreen] [part='mute-button']:hover ~ [part='volume'],
+playerstack-media-controller[data-fullscreen] [part='volume']:hover {
+  /* Expanded width from the original `sliderWidth(true)` = 83px. */
+  width: 83px;
+}
+
+/* Volume slider track (VolumeSliderContainer): 2px rail, rounded, translucent. The slider is
+   inset 7px (the thumb radius) from each end of the `[part='volume']` box via horizontal margin.
+   The thumb is positioned by `left: <volume>%` relative to this inset slider, so at 0% its
+   centre sits 7px in from the left edge (ball flush to the edge, not past it) and at 100% 7px in
+   from the right — the 14px circle therefore never crosses the `overflow:hidden` boundary that
+   was clipping it at both ends. Margin (not padding) keeps `left:%` measured against the inset
+   box. `width:auto` lets the margins shrink it within the revealed volume width. */
+[part='volume'] [part='slider'] {
+  /* Small inset (matches the original ~3px container padding) so the slider hugs the mute
+     button and time read-out like before, instead of floating with a big gap. The thumb can
+     slightly reach the ends; the expanded volume box uses `overflow:visible` (below) so the
+     ball is never clipped, while the collapsed box keeps `overflow:hidden` for the reveal. */
+  margin: 0 3px;
+  height: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+[part='volume'] [part='track'] {
+  width: 100%;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  position: relative;
+  top: auto;
+  transform: none;
+}
+
+/* Volume fill (VolumeSliderTrack): white, 2px (4px fullscreen), grey when muted/disabled. */
+[part='volume'] [part='track-fill'] {
+  height: 2px;
+  border-radius: 2px;
+  background-color: #fff;
+}
+
+/* Volume thumb (VolumeSliderThumb): 14px white circle (18px fullscreen). The element sets its
+   `left` to the current volume percentage; the -50% X translate centers the circle on that
+   point so it rides the end of the fill (parity with the original VolumeSlider thumb). */
+[part='volume'] [part='thumb'] {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #fff;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
+}
+
+playerstack-media-controller[data-fullscreen] [part='volume'] [part='track'],
+playerstack-media-controller[data-fullscreen] [part='volume'] [part='track-fill'] {
+  height: 4px;
+}
+
+/* Fullscreen thumb is 18px (9px radius), so inset the slider 9px each end to match. */
+playerstack-media-controller[data-fullscreen] [part='volume'] [part='slider'] {
+  margin: 0 9px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='volume'] [part='thumb'] {
+  width: 18px;
+  height: 18px;
+}
+
+/* Muted state dims the fill/thumb to grey (VolumeSlider isDisabled). `data-muted` is reflected
+   on the `playerstack-volume` element host as the ALWAYS-PRESENT string `"true"`/`"false"`
+   (reflectState JSON-encodes booleans, never removing the attribute), so we MUST gate on the
+   VALUE `="true"`. A bare `[data-muted]` matched BOTH states and permanently greyed the fill
+   even when unmuted (this exact bug already bit us elsewhere). */
+playerstack-volume[data-muted='true'] [part='track-fill'],
+playerstack-volume[data-muted='true'] [part='thumb'] {
+  background-color: #a4a4a4;
+}
+
+/* Volume percent tooltip (StyledVolumePercentTooltip): floating read-out shown while hovering
+   or dragging the slider (`showTooltip = sliderHovering || volumeSliding`). The element toggles
+   `data-visible` and sets `left:{pct}%` (centered above the thumb via translateX(-50%)). Hidden
+   by default so it only appears during interaction. */
+[part='volume-tooltip'] {
+  position: absolute;
+  /* Lift the read-out ABOVE the whole control bar, not just the 2px rail. The tooltip is a
+     child of `[part='slider']` (the thin rail centered in the 36px volume box), so `bottom:100%`
+     alone left it hugging the rail. Anchoring it a control-height above the rail (18px = half
+     the 36px bar + the original 4px gap) reproduces the original separation, where the tooltip
+     sat above the full-height `StyledSliderContainer`. */
+  bottom: calc(100% + 22px);
+  left: 0;
+  transform: translateX(-50%);
+  background-color: rgba(15, 15, 15, 0.9);
+  border-radius: 4px;
+  padding: 4px 8px;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 90%;
+  color: #fff;
+  pointer-events: none;
+  /* Above the time-slider (z-index 12) so the read-out is never occluded by the progress bar. */
+  z-index: 13;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+[part='volume-tooltip'][data-visible='true'] {
+  opacity: 1;
+}
+
+/* Fullscreen sizing (StyledVolumePercentTooltip `$fullscreen` -> font-size 130%) + a taller
+   lift to clear the 54px fullscreen control bar. */
+playerstack-media-controller[data-fullscreen] [part='volume-tooltip'] {
+  font-size: 130%;
+  bottom: calc(100% + 31px);
+}
+
+playerstack-media-controller[data-fullscreen] [part='volume-tooltip'] {
+  font-size: 130%;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Generic tooltip primitive (Commons/Tooltip). Hidden by default, shown on    */
+/* hover of the wrapping part; suppressed while a menu is expanded.            */
+/* -------------------------------------------------------------------------- */
+[part='tooltip-text'] {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  background-color: rgba(15, 15, 15, 0.9);
+  border-radius: 4px;
+  padding: 5px 10px;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 90%;
+  margin-bottom: 6px;
+  color: #fff;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 0.15s ease;
+  z-index: 12;
+}
+
+playerstack-media-controller[data-fullscreen] [part='tooltip-text'] {
+  font-size: 130%;
+  margin-bottom: 10px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* TimeSlider (Slider / SlideRail / Track / Buffered / Handle + tooltip).     */
+/* The rail sits under the played track; the played track is scaled from the   */
+/* right edge (transform-driven) exactly like the reactjs slider. The handle   */
+/* is hidden (scale 0) until hover/slide, when it pops in with a red ring.     */
+/* -------------------------------------------------------------------------- */
+[part='time-slider'] {
+  position: relative;
+  width: 100%;
+  display: block;
+  height: 4px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+[part='time-slider'] [part='slider'] {
+  width: 100%;
+  height: 4px;
+  position: relative;
+}
+
+/* Rail (SlideRail) + played/buffered tracks share the 4px height (6px fullscreen). The
+   original `StyledSliderContent` rendered the rail thin at rest (`scaleY(0.6)`) and expanded
+   it to full height (`scaleY(1)`) on hover/focus/while sliding, with the exact
+   `transform 0.1s cubic-bezier(0.4, 0, 1, 1)` ease-out (and the cubic-bezier(0,0,0.2,1)
+   ease-in on reveal). Ported 1:1 here by scaling the track vertically; `transform-origin`
+   is the vertical center so it grows symmetrically. */
+[part='time-slider'] [part='track'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 0;
+  transform-origin: center center;
+  transform: scaleY(0.6);
+  transition: transform 0.1s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Rail thin->thick reveal on hover/focus of the slider or while actively sliding. */
+[part='time-slider']:hover [part='track'],
+[part='time-slider']:focus [part='track'],
+[part='time-slider'] [part='slider']:hover [part='track'],
+[part='time-slider'] [part='slider']:focus [part='track'],
+playerstack-media-controller[data-time-sliding] [part='time-slider'] [part='track'],
+playerstack-time-slider[data-time-sliding] [part='track'] {
+  transform: scaleY(1);
+  transition: transform 0.1s cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Touch devices always show the full-height rail (parity with the @media(hover:none) branch). */
+@media (hover: none), (pointer: coarse) {
+  [part='time-slider'] [part='track'] {
+    transform: scaleY(1);
+  }
+}
+
+/* AD MODE: the timeline is a NON-interactive progress bar (no drag), so it must NOT grow on
+   hover. Pin the rail to its resting height and neutralize the hover/slide `scaleY(1)` reveal
+   while an ad plays (the handle is already hidden by the element). */
+playerstack-media-controller[data-ad-active] [part='time-slider'] [part='track'],
+playerstack-media-controller[data-ad-active] [part='time-slider']:hover [part='track'],
+playerstack-media-controller[data-ad-active] [part='time-slider'] [part='slider']:hover [part='track'] {
+  transform: scaleY(0.6);
+}
+
+[part='time-slider'] [part='track-buffered'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 0;
+}
+
+/* Played fill (StyledTrack): the skin's red progress color, NOT the accent token, */
+/* to preserve the reactjs `#f00` progress Visual_Parity. */
+[part='time-slider'] [part='track-fill'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #f00;
+  border-radius: 0;
+}
+
+/* Handle/thumb (StyledSliderHandle): 12px red circle, hidden (scale 0) until */
+/* hover/slide. Fullscreen grows it to 20px. The element positions the thumb by setting */
+/* `left` to the played fraction (so it rides the RIGHT EDGE of the red played fill, matching */
+/* the original handle pinned to the end of the played track); the -50% X translate centers */
+/* the circle on that point. */
+[part='time-slider'] [part='thumb'] {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #cb0e0b;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.1s cubic-bezier(0.4, 0, 1, 1);
+  z-index: 4;
+}
+
+/* Popped-in handle on hover/focus of the slider or while actively sliding. `data-time-sliding`
+   is reflected BOTH on the controller (from the store's `seeking`) and LOCALLY on the
+   `playerstack-time-slider` host during a press-and-drag scrub, so both selectors reveal it. */
+[part='time-slider']:hover [part='thumb'],
+[part='time-slider']:focus [part='thumb'],
+playerstack-media-controller[data-time-sliding] [part='time-slider'] [part='thumb'],
+playerstack-time-slider[data-time-sliding] [part='thumb'] {
+  transform: translate(-50%, -50%) scale(1);
+  box-shadow: 0 0 0 5px rgba(255, 0, 0, 0.2);
+  pointer-events: auto;
+  transition: transform 0.1s cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Fullscreen enlarges the whole slider (6px rail, 20px handle). */
+playerstack-media-controller[data-fullscreen] [part='time-slider'],
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='slider'],
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='track'] {
+  height: 6px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='thumb'] {
+  width: 20px;
+  height: 20px;
+}
+
+/* Touch devices always expose the handle (Slider @media (hover:none)). */
+@media (hover: none), (pointer: coarse) {
+  [part='time-slider'] [part='thumb'] {
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+    box-shadow: none;
+  }
+}
+
+/* Ad mode disables the slider handle + cursor and turns the played fill yellow (Slider
+   `adMode`). The shared store has NO ad boolean (ads are owned by `playerstack-ad-overlay`,
+   which reflects `data-active` on its OWN host), so the controller does not fabricate a
+   `data-ad-active` flag. These rules are kept as the exact 1:1 port of the original `adMode`
+   styling and activate when the skin/adapter layer opts in by reflecting `data-ad-active` on
+   the controller host (e.g. deriving it from an ad session); until then they stay dormant and
+   the ad-overlay's own `[data-active]` drives the ad affordances. */
+playerstack-media-controller[data-ad-active] [part='time-slider'] {
+  cursor: default;
+}
+
+playerstack-media-controller[data-ad-active] [part='time-slider'] [part='thumb'] {
+  display: none;
+}
+
+playerstack-media-controller[data-ad-active] [part='time-slider'] [part='track-fill'] {
+  background: #fc0;
+}
+
+/* Time tooltip (StyledTooltip merged with StyledTip): hidden until hover/slide. The element
+   positions this at the pointer X via `left`; the `translateX(-50%)` centers the inline-flex
+   column on that point, so the tooltip floats ABOVE the pointer (NOT pinned bottom-left). The
+   column stacks the optional chapter label above the time line (StyledTip child order). */
+[part='time-slider'] [part='tooltip'] {
+  display: none;
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  pointer-events: none;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.4em 0.8em;
+  transform: translateX(-50%);
+  font-weight: 500;
+  font-size: 12px;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+[part='time-slider']:hover [part='tooltip'],
+playerstack-media-controller[data-time-sliding] [part='time-slider'] [part='tooltip'],
+playerstack-time-slider[data-time-sliding] [part='tooltip'] {
+  display: inline-flex;
+}
+
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='tooltip'] {
+  bottom: 13px;
+  font-size: 18px;
+}
+
+/* Hovered chapter TITLE inside the tooltip (StyledChapterLabel): a single ellipsized line
+   ABOVE the time, dimmer weight, its own smaller font (11px, 14px fullscreen). */
+[part='time-slider'] [part='tooltip-chapter'] {
+  display: block;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='tooltip-chapter'] {
+  font-size: 14px;
+}
+
+/* Time line inside the tooltip (StyledTip text): inherits the tooltip font size. */
+[part='time-slider'] [part='tooltip-time'] {
+  display: block;
+}
+
+/* Timelens sprite-preview thumbnail (StyledTimelensThumbnail): white-bordered */
+/* frame that fades in above the slider on hover. */
+[part='time-slider'] [part='timelens'] {
+  background: #fff;
+  border: solid #fff 2px;
+  border-radius: 2px;
+  background-clip: content-box;
+  background-repeat: no-repeat;
+  position: absolute;
+  top: -35px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-100%) translateY(-7px);
+  transition: opacity 0.2s, z-index 0.2s;
+}
+
+/* Fade the thumbnail in while hovering (the element toggles `data-visible` on the node as it
+   paints a frame), parity with the original `showing` opacity transition. */
+[part='time-slider'] [part='timelens'][data-visible] {
+  opacity: 1;
+}
+
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='timelens'] {
+  top: -45px;
+}
+
+/* Heatmap ("most replayed") graph rendered INSIDE the slider (parity with the original
+   HeatmapGraph): it sits just ABOVE the timeline rail, is hidden (scaled to 0) until the user
+   hovers/scrubs the slider, and scales up from the bottom edge. Because it lives inside the
+   slider container it hides together with the controls (data-hiding) and the timeline. */
+[part='time-slider'] [part='heatmap'] {
+  position: absolute;
+  left: 0;
+  bottom: 12px;
+  width: 100%;
+  height: 30px;
+  pointer-events: none;
+  z-index: 2;
+  transform-origin: bottom center;
+  opacity: 0;
+  transform: scaleY(0);
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+
+/* Reveal only while hovering/focusing the slider or actively scrubbing (parity with the
+   original `visible = showTooltip || timeSliderSliding`), AND only when there is a drawable
+   curve (`data-active`). */
+[part='time-slider']:hover [part='heatmap'][data-active],
+[part='time-slider']:focus [part='heatmap'][data-active],
+playerstack-media-controller[data-time-sliding] [part='time-slider'] [part='heatmap'][data-active],
+playerstack-time-slider[data-time-sliding] [part='heatmap'][data-active] {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* Fullscreen grows the graph + lifts it a bit more, matching the taller fullscreen rail. */
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='heatmap'] {
+  height: 40px;
+  bottom: 16px;
+}
+
+/* Mobile: the slider is inset by the handle radius (`margin: 0 6px`), so the heatmap — which
+   lives on the `[part='time-slider']` — must be inset the SAME 6px on each side; otherwise the
+   0-100 curve maps to the full time-slider width and spills past the (narrower) timeline rail on
+   both ends. Align its box to the track and lift it just above the 2px mobile rail. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='time-slider'] [part='heatmap'] {
+  left: 6px;
+  right: 6px;
+  width: auto;
+  bottom: 14px;
+  height: 26px;
+}
+
+[part='time-slider'] [part='heatmap-svg'] {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+[part='time-slider'] [part='heatmap-path'] {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+[part='time-slider'] [part='heatmap-path-played'] {
+  fill: none;
+  stroke: rgba(255, 255, 255, 1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Chapter segments on the slider (StyledChapterSegments / StyledChapterSegment). The overlay
+   splits the timeline into discrete chapter blocks separated by a 2px gap; each block carries
+   the same translucent base as the rail so the played fill (below) shows through. The overlay
+   is purely visual and never intercepts pointer events, so the slider stays seekable. */
+[part='time-slider'] [part='chapters'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  z-index: 3;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Each divider is a chapter block (StyledChapterSegment): translucent, rounded, full-height.
+   On hover the block grows vertically (`scaleY(2)`, `scaleY(1.8)` fullscreen) from its center,
+   matching the original hovered-segment affordance; the element reflects `data-hovered` on the
+   block under the pointer. */
+[part='time-slider'] [part='chapter-segment'] {
+  position: relative;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 1px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  transform-origin: center center;
+  transition: transform 0.1s ease;
+  /* Visual gap between segments: a transparent right border + background-clip:padding-box
+     creates a visible dark gap (the player background shows through the transparent border). */
+  box-sizing: border-box;
+  border-right: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+[part='time-slider'] [part='chapter-segment']:last-child {
+  border-right: none;
+}
+
+/* When chapter segments render, they ARE the timeline (the original hid the plain rail in the
+   `hasChapters` branch). Make the plain `[part='track']` base TRANSPARENT (not `display:none`)
+   so the segments don't sit over a second translucent rail — that double layer made the hovered
+   segment look brighter/solid. It MUST keep its box (width/height) because the slider's
+   pointer handlers measure `track.getBoundingClientRect()` to compute seek/hover; hiding it with
+   `display:none` collapsed it to 0×0 and broke seeking + segment hover. */
+playerstack-time-slider[data-has-chapters] [part='track'] {
+  background-color: transparent;
+}
+
+[part='time-slider'] [part='chapter-segment'][data-hovered] {
+  transform: scaleY(2);
+}
+
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='chapter-segment'][data-hovered] {
+  transform: scaleY(1.8);
+}
+
+/* Per-segment buffered fill (StyledChapterSegmentBuffered): translucent white, left-anchored. */
+[part='time-slider'] [part='chapter-segment-buffered'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Per-segment hover highlight (YouTube-style seek preview within a chapter segment). */
+[part='time-slider'] [part='chapter-segment-hover'] {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: var(--playerstack-color-track-hover, rgba(255, 255, 255, 0.2));
+  pointer-events: none;
+}
+
+/* Per-segment played fill (StyledChapterSegmentFilled): the skin's red progress, over buffered. */
+[part='time-slider'] [part='chapter-segment-filled'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #f00;
+}
+
+playerstack-media-controller[data-fullscreen] [part='time-slider'] [part='chapters'] {
+  height: 6px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Settings menu / submenu (StyledDropdownOverlay + items).                   */
+/* Hidden by default; shown when the host reflects data-open. The panel is a   */
+/* 250px translucent dropdown anchored above the control bar.                  */
+/* -------------------------------------------------------------------------- */
+/* Main menu panel (StyledDropdownOverlay): 250px translucent dropdown anchored above the bar,
+   10px vertical padding for the row list. Hidden until the host reflects `data-open`. */
+[part='menu'] {
+  width: 250px;
+  position: absolute;
+  overflow: hidden;
+  z-index: 20;
+  right: -35px;
+  bottom: 55px;
+  padding: 10px 0;
+  background: rgba(15, 15, 15, 0.9);
+  color: #fff;
+  border-radius: var(--playerstack-radius-md, 8px);
+  display: none;
+}
+
+/* Submenu panel (StyledDropdownOverlayScrolled): same anchor/width but scrollable
+   (max-height 283.5px) with a custom webkit scrollbar. Hidden until a category is open. */
+[part='submenu'] {
+  width: 250px;
+  max-height: 283.5px;
+  position: absolute;
+  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 20;
+  right: -35px;
+  bottom: 55px;
+  background: rgba(15, 15, 15, 0.9);
+  color: #fff;
+  border-radius: var(--playerstack-radius-md, 8px);
+  display: none;
+}
+
+[part='submenu']::-webkit-scrollbar {
+  width: 8px;
+  background-color: #4c4c4c;
+}
+
+[part='submenu']::-webkit-scrollbar-thumb {
+  background-color: #909090;
+  border-radius: 10px;
+}
+
+/* The settings element hosts positioned dropdown panels. It MUST be `position:relative` (same as
+   the original `StyledDropdownContainer`) so `right:-35px; bottom:55px` on the panels resolves
+   against the settings button rather than a far ancestor — keeping the dropdown within the
+   controller's `overflow:hidden` bounding box. */
+playerstack-settings {
+  position: relative;
+}
+
+/* Empty-options guard: when the built settings menu has NO options (e.g. an ad with no
+   quality/caption entries, since ad mode also drops Speed), the element reflects `data-empty`
+   on its host and the whole control is hidden — mirroring the original component returning
+   `null` when `settingsOptions.length === 0`. */
+playerstack-settings[data-empty] {
+  display: none;
+}
+
+/* Open state reveals the main menu (DropdownOverlay `hiding` -> display). `data-open` is
+   reflected on the `playerstack-settings` element host. When a submenu is open the original
+   REPLACES the main menu with the submenu, so hide the main menu while `data-submenu` is set. */
+playerstack-settings[data-open] [part='menu'] {
+  display: block;
+}
+
+playerstack-settings[data-open][data-submenu] [part='menu'] {
+  display: none;
+}
+
+/* Submenu shows only when a category is open (host reflects `data-submenu`). */
+playerstack-settings[data-open][data-submenu] [part='submenu'] {
+  display: block;
+}
+
+playerstack-media-controller[data-fullscreen] [part='menu'],
+playerstack-media-controller[data-fullscreen] [part='submenu'] {
+  right: -52px;
+  bottom: 75px;
+}
+
+/* Menu rows (StyledDropdownItem): 40px tall (49px fullscreen), hover highlight. */
+[part='menu-item'],
+[part='submenu-item'] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: calc(100% - 20px);
+  height: 40px;
+  padding: 0 15px;
+  margin: 5px 10px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 40px;
+  cursor: pointer;
+  justify-content: flex-start;
+  border-radius: 8px;
+}
+
+[part='menu-item']:hover,
+[part='menu-item']:focus,
+[part='submenu-item']:hover,
+[part='submenu-item']:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+playerstack-media-controller[data-fullscreen] [part='menu-item'],
+playerstack-media-controller[data-fullscreen] [part='submenu-item'] {
+  height: 49px;
+}
+
+/* Active submenu option (StyledDropdownItem `selected`). The submenu marks the active option
+   with `data-active='true'` via setAttribute/removeAttribute (present-or-absent), so a bare
+   `[data-active]` is correct here. */
+[part='submenu-item'][data-active] {
+  background-color: rgba(204, 54, 43, 0.4);
+}
+
+/* Main row layout (StyledDropdownTitle + StyledDropdownContentValue): label pushed left with
+   `margin-right:auto`, the current value + chevron grouped on the right. */
+[part='menu-item-title'] {
+  margin-right: auto;
+}
+
+[part='menu-item'] [part='menu-item-value'] {
+  font-size: 87%;
+}
+
+/* Right chevron on each main row (ArrowRightIcon 28x28). The glyph sits inline after the value.
+   The icon inherits currentColor from the row's white text. */
+[part='menu-item'] [part='menu-item-arrow'] {
+  display: inline-flex;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+[part='menu-item'] [part='menu-item-arrow'] svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* Submenu header (StyledDropdownHeader): a 57px row with a bottom divider holding the back
+   button (arrow + category title). */
+[part='submenu-header'] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+[part='submenu-back'] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 57px;
+  padding: 20px 5px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 91%;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+[part='submenu-back']:hover,
+[part='submenu-back']:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+[part='submenu-back'] .icon {
+  display: inline-flex;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+[part='submenu-back'] .icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* HD sub-badge on a full-HD quality option (StyledDropdownItemValueSub). */
+[part='hd-badge'] {
+  font-size: 10px;
+  font-weight: 500;
+  color: #cb0e0b;
+  margin-left: 3px;
+}
+
+/* "HD" badge on the gear button when the active quality is full-HD (StyledDropdownButton
+   `isFullHD` -> `&:after{content:"HD"}`). Positioned over the top-right of the gear. */
+playerstack-settings[data-fullhd] [part='settings-button'] {
+  position: relative;
+}
+
+playerstack-settings[data-fullhd] [part='settings-button']::after {
+  content: 'HD';
+  position: absolute;
+  top: 9px;
+  right: 4px;
+  width: 13px;
+  height: 9px;
+  font-size: 7px;
+  line-height: 10px;
+  text-align: center;
+  color: #fff;
+  background-color: #cb0e0b;
+  border-radius: 1px;
+  font-weight: 700;
+}
+
+playerstack-media-controller[data-fullscreen] playerstack-settings[data-fullhd] [part='settings-button']::after {
+  top: 9px;
+  right: 4px;
+  width: 20px;
+  height: 16px;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+/* Gear rotation on open (StyledDropdownButton `isExpanded` -> `& svg { transform: rotate(45deg);
+   transition: all 0.2s ease-in-out }`). Ported 1:1 for the VIDEO skin (previously only the
+   audio skin had it). The gear glyph rests un-rotated and animates to 45deg when the settings
+   menu opens; `data-open` is set/removed on the `playerstack-settings` host (present-or-absent),
+   so the bare `[data-open]` gate is correct. Targets both the `.icon` span and its `svg`. */
+playerstack-settings [part='settings-button'] .icon,
+playerstack-settings [part='settings-button'] svg {
+  transition: transform 0.2s ease-in-out;
+  transform: rotate(0);
+}
+
+playerstack-settings[data-open] [part='settings-button'] .icon,
+playerstack-settings[data-open] [part='settings-button'] svg {
+  transform: rotate(45deg);
+}
+
+/* Settings submenu slide-in reveal (StyledDropdownContent `show` -> opacity 0->1 +
+   translateX(100px)->0). The element sets `data-show` on the submenu 100ms after opening a
+   category (mirroring the original `setTimeout(() => setShow(true), 100)`), so the OPTION LIST
+   slides in from the right with the exact `opacity 0.15s linear, transform 0.15s ease-out`
+   easing. The header stays put; only the content animates. */
+[part='submenu-content'] {
+  opacity: 0;
+  transform: translate(100px, 0);
+  transition: opacity 0.15s linear, transform 0.15s ease-out;
+}
+
+playerstack-settings [part='submenu'][data-show] [part='submenu-content'] {
+  opacity: 1;
+  transform: translate(0, 0);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Captions submenu "Options" affordance + caption STYLE config panel.         */
+/* Parity with the original desktop `DropdownOverlay` "Options" link and the    */
+/* `CaptionOptions` panel (a second dropdown that customizes font/colors/edge). */
+/* -------------------------------------------------------------------------- */
+
+/* "Options" link in the Captions submenu header (StyledGeneralButton isText, underlined, pushed
+   to the right of the back button). Opens the caption STYLE panel. */
+[part='submenu-options'] {
+  margin-left: auto;
+  padding: 20px 15px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: underline;
+  opacity: 0.8;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+[part='submenu-options']:hover,
+[part='submenu-options']:focus {
+  opacity: 1;
+}
+
+/* Caption STYLE panel container (CaptionOptions StyledOptionsContainer): same anchored 250px
+   translucent dropdown as the settings submenu; scrollable. Hidden until the host reflects
+   `data-caption-options` (set when the panel is open). It layers OVER the Captions submenu, so
+   while it is open hide the plain submenu behind it. */
+[part='caption-options'] {
+  width: 250px;
+  max-height: 283.5px;
+  position: absolute;
+  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 21;
+  right: -35px;
+  bottom: 55px;
+  background: rgba(15, 15, 15, 0.9);
+  color: #fff;
+  border-radius: var(--playerstack-radius-md, 8px);
+  display: none;
+}
+
+[part='caption-options']::-webkit-scrollbar {
+  width: 8px;
+  background-color: #4c4c4c;
+}
+
+[part='caption-options']::-webkit-scrollbar-thumb {
+  background-color: #909090;
+  border-radius: 10px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='caption-options'] {
+  right: -52px;
+  bottom: 75px;
+}
+
+/* When the style panel is open, reveal it and hide the plain Captions submenu behind it. */
+playerstack-settings[data-open][data-caption-options] [part='caption-options'] {
+  display: block;
+}
+
+playerstack-settings[data-open][data-caption-options] [part='submenu'] {
+  display: none;
+}
+
+/* Style panel header (StyledOptionsHeader): mirrors the submenu header divider row. */
+[part='caption-options-header'] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Style property rows (StyledOptionsItem): label left, current value + chevron right. */
+[part='caption-options-item'] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  padding: 0 15px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 40px;
+  cursor: pointer;
+  justify-content: flex-start;
+  border-radius: 8px;
+}
+
+[part='caption-options-item']:hover,
+[part='caption-options-item']:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+playerstack-media-controller[data-fullscreen] [part='caption-options-item'] {
+  height: 49px;
+}
+
+[part='caption-options-label'] {
+  margin-right: auto;
+}
+
+[part='caption-options-value'] {
+  display: inline-flex;
+  align-items: center;
+  font-size: 87%;
+  opacity: 0.85;
+}
+
+[part='caption-options-value'] .icon {
+  display: inline-flex;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+[part='caption-options-value'] .icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Control-button tooltip (StyledTooltipText). A single floating label managed */
+/* by TooltipManager on the controller host: shown on hover over a control     */
+/* button, positioned above it, clamped within the player box. The manager     */
+/* sets inline `left`/`bottom` (px, relative to the host) + `data-visible`;     */
+/* CSS centers it over that point via translateX(-50%) and fades it in.         */
+/* -------------------------------------------------------------------------- */
+[part='tooltip-label'] {
+  position: absolute;
+  transform: translateX(-50%);
+  background-color: rgba(15, 15, 15, 0.9);
+  border-radius: 4px;
+  padding: 5px 10px;
+  white-space: nowrap;
+  font-weight: 500;
+  color: #fff;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 12;
+  /* Normal sizing (normalStyles): 90% font, 6px gap above the button. */
+  font-size: 90%;
+  margin-bottom: 6px;
+}
+
+[part='tooltip-label'][data-visible='true'] {
+  opacity: 1;
+}
+
+/* Fullscreen sizing (fullscreenStyles): larger font + bigger gap. */
+playerstack-media-controller[data-fullscreen] [part='tooltip-label'] {
+  font-size: 130%;
+  margin-bottom: 10px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Captions overlay + options (CaptionOverlay / CaptionOptions).             */
+/* -------------------------------------------------------------------------- */
+/* The draggable caption box (parity with the original StyledCaptionContainer): centered on its
+   inline `left`% via translateX(-50%), sized to its content, draggable (pointer-events:auto,
+   grab cursor). Hidden until a cue is active. `top`/`left` are set inline by the element. */
+[part='captions'] {
+  position: absolute;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 6;
+  display: none;
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  /* The element positions vertically by a `bottom` px offset (constant margin across sizes) and
+     horizontally by `left` %, so animate those (parity: the original animated `top`). */
+  transition: bottom 0.3s ease, left 0.3s ease;
+}
+
+[part='captions']:active {
+  cursor: grabbing;
+}
+
+/* Show the caption box only when a cue is active. `data-active` is reflected as the always-
+   present string `"true"`/`"false"`, so gate on the VALUE. */
+playerstack-captions[data-active='true'] [part='captions'] {
+  display: block;
+}
+
+/* The "window" box (StyledCaptionWindow): sized to its content, capped at 80vw, rounded. Its
+   background color/opacity are set INLINE from the caption style (windowColor/windowOpacity). */
+[part='caption-window'] {
+  display: inline-block;
+  width: max-content;
+  max-width: 80vw;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+/* Each cue is its own line (StyledCaptionText): the font/color/background/edge-shadow are set
+   INLINE from the caption style; keep only the structural rules here so the box never distorts. */
+[part='cue'] {
+  display: block;
+  padding: 2px 6px;
+  border-radius: 2px;
+  line-height: 1.4;
+  font-weight: 500;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* (The caption STYLE "Options" panel CSS lives with the settings dropdown block above —
+   `[part='caption-options']` gated by `playerstack-settings[data-open][data-caption-options]`.
+   A stale duplicate that lived here was removed to avoid a conflicting cascade.) */
+
+/* -------------------------------------------------------------------------- */
+/* Nav buttons (playerstack-nav-buttons) — the previous/next cluster.         */
+/* Reuses the shared control-button primitives ([part$='-button']) so the     */
+/* prev/next buttons match the other 36px (54px fullscreen) controls; the     */
+/* container is a simple inline flex row with the standard control gap.        */
+/* The `.icon-prev`/`.icon-next` glyphs inherit the shared `.icon` sizing.     */
+/* -------------------------------------------------------------------------- */
+[part='nav-buttons'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--playerstack-space-xs, 4px);
+}
+
+/* Directional glyphs mirror one another so a single arrow asset serves both. */
+.icon-next {
+  transform: scaleX(-1);
+}
+[part='nav-buttons'][data-hidden],
+playerstack-nav-buttons[data-hidden] [part='nav-buttons'] {
+  display: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* PlayState center overlay (StyledPlayButton). Ported 1:1 from the original:  */
+/* a full-cover `rgba(0,0,0,0.5)` scrim with a big 64px glyph. In the reactjs  */
+/* skin the button was ALWAYS mounted (when not loading/kernel/waiting) but    */
+/* `showing ? opacity:1;cursor:pointer : opacity:0;cursor:default` — i.e. it   */
+/* faded to fully transparent during playback yet still sat over the video.    */
+/*                                                                            */
+/* VISIBILITY FIX (Step 3): the original `PlayState` component only surfaced   */
+/* the affordance when `!loading && !waiting(buffering) && !kernelMsg &&       */
+/* (paused || ended)`. The Core element now derives that exact predicate and   */
+/* reflects it as `data-showing` on `playerstack-play-state` (absent = hidden).*/
+/* So the DEFAULT here is HIDDEN and NON-INTERACTIVE (`opacity:0;              */
+/* pointer-events:none`), and ONLY `[data-showing="true"]` fades it in AND     */
+/* re-enables pointer events. This guarantees that while the video PLAYS the   */
+/* center overlay is transparent AND does not intercept clicks (the reported   */
+/* bug where the big button showed mid-playback and blocked interaction).      */
+/* -------------------------------------------------------------------------- */
+[part='play-state'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  /* Glyph hidden by default (opacity gated by data-showing below); the click layer itself
+     stays active (pointer-events set to auto in the dedicated rule below) so a click anywhere
+     on the video toggles play/pause like the original. */
+  opacity: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.3s;
+}
+
+[part='play-state-button'] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #fff;
+  /* Literal original scrim (was `!important` in styled-components; kept literal here). */
+  background: rgba(0, 0, 0, 0.5);
+  font-size: 64px;
+  cursor: default;
+}
+
+/* The center button matches `[part$='-button']`, which has a translucent `control-hover`
+   background on `:hover`/`:focus`. That would paint a grey wash over the WHOLE stage when the
+   pointer is anywhere on the video. The center affordance must NOT have a hover background — its
+   only backdrop is the `data-showing` scrim above — so neutralize the shared button hover here. */
+[part='play-state-button']:hover,
+[part='play-state-button']:focus {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Center glyph size (original PlayState rendered `<PlayIcon width="20%" height="100%"/>`, and
+   `<ReplayIcon width="14%" height="100%"/>` when ended). `play-state-button` matches the shared
+   `[part$='-button'] .icon { width/height:100% }` control-glyph rule, which would blow the
+   glyph up to the FULL stage overlay — so override it here to the original small proportions:
+   the glyph is a fraction of the overlay WIDTH, full HEIGHT, centered. */
+[part='play-state-button'] .icon {
+  width: 20%;
+  height: 100%;
+}
+playerstack-play-state[data-ended='true'] [part='play-state-button'] .icon-replay {
+  width: 14%;
+}
+
+/* Only the play (paused) glyph shows when paused; the replay glyph only when ended. The
+   pause glyph is never shown in the center overlay (parity with the original, which rendered
+   PlayIcon when paused and ReplayIcon when ended). */
+[part='play-state-button'] .icon-pause {
+  display: none;
+}
+playerstack-play-state:not([data-ended='true']) .icon-replay {
+  display: none;
+}
+playerstack-play-state[data-ended='true'] .icon-play {
+  display: none;
+}
+
+/* The mobile glyph variants (`icon-play-mobile`/`icon-pause-mobile`) are hidden by default —
+   they only surface under the mobile skin (see the mobile play-state block). This keeps the
+   DESKTOP center overlay unchanged (desktop `icon-play`/`icon-replay`). */
+[part='play-state-button'] .icon-play-mobile,
+[part='play-state-button'] .icon-pause-mobile {
+  display: none;
+}
+
+/* Surface the overlay ONLY when the element reflects the derived `showing` gate (paused ||
+   ended, and not loading/buffering/kernel). `data-showing` is set to `"true"` only in that
+   case and REMOVED otherwise, so a value/presence check both work; use `="true"` for clarity. */
+playerstack-play-state[data-showing='true'] [part='play-state'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+playerstack-play-state[data-showing='true'] [part='play-state-button'] {
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Spinner (loading/buffering). Hidden until active; the glyph spins via the   */
+/* shared keyframes. Ported from the mobile spinner ring visuals.             */
+/* -------------------------------------------------------------------------- */
+[part='spinner'] {
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Gate on the derived `data-active='true'` VALUE (see the base spinner note above): the
+   `data-loading`/`data-buffering` booleans are always PRESENT so a bare selector matched both
+   states. */
+playerstack-spinner[data-active='true'] [part='spinner'] {
+  display: flex;
+}
+
+[part='spinner-indicator'] {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: playerstack-spinner 0.8s linear infinite;
+}
+
+/* -------------------------------------------------------------------------- */
+/* PreventedTip (StyledPeventedTip / StyledPreventedIcon).                    */
+/* -------------------------------------------------------------------------- */
+[part='prevented-tip'] {
+  position: absolute;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  top: 15px;
+  left: 15px;
+  padding: 8px;
+  width: auto;
+  height: auto;
+  font-size: 14px;
+  line-height: 1.5em;
+  border-radius: 2px;
+  color: #fff;
+  background: rgba(15, 15, 15, 0.8);
+  cursor: pointer;
+  z-index: 6;
+}
+
+/* Gate on the value: `data-active` is reflected as the always-present `"true"`/`"false"`. */
+playerstack-prevented-tip[data-active='true'] [part='prevented-tip'] {
+  display: flex;
+}
+
+/* Leading glyph (StyledPreventedIcon): 20x20, 8px to the left of the message. */
+[part='prevented-tip-icon'] {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+[part='prevented-tip-icon'] svg {
+  width: 20px;
+  height: 20px;
+}
+
+[part='prevented-tip-message'] {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Full-stage transparent click-catcher (StyledPeventedTipClicked): shown ONLY for the
+   click-to-unmute case so a click anywhere resumes/unmutes; sits below the tip pill (z-index 5
+   vs 6). The element toggles its inline `display`, but keep it click-through by default and only
+   interactive while the unmute tip is active. */
+[part='prevented-tip-clicked'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  cursor: pointer;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+/* -------------------------------------------------------------------------- */
+/* TopState (StyledKernel): full-cover status scrim with padding.             */
+/* -------------------------------------------------------------------------- */
+[part='top-state'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  padding: 2em;
+  background: rgba(0, 0, 0, 0.65);
+  display: none;
+}
+
+/* Gate on the value: `data-active` is reflected as the always-present `"true"`/`"false"`. */
+playerstack-top-state[data-active='true'] [part='top-state'] {
+  display: block;
+}
+
+/* -------------------------------------------------------------------------- */
+/* ContextMenu (StyledContextMenuContainer + items).                          */
+/* Positioned at the pointer via the --playerstack-context-menu-x/-y custom    */
+/* properties the element sets; shown when the host reflects data-open.        */
+/* -------------------------------------------------------------------------- */
+[part='context-menu'] {
+  position: absolute;
+  top: var(--playerstack-context-menu-y, 0);
+  left: var(--playerstack-context-menu-x, 0);
+  border-radius: 4px;
+  background: rgba(15, 15, 15, 0.9);
+  transition: all 0.1s;
+  user-select: none;
+  padding: 8px 0;
+  z-index: 9999;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.5;
+  display: none;
+}
+
+playerstack-context-menu[data-open] [part='context-menu'] {
+  display: block;
+}
+
+[part='context-menu-item'] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 12px;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+[part='context-menu-item']:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Leading glyph (ICON_MAP icons). The original rendered these at `buildIconProps(fullscreen)`
+   = 36x36 (54x54 fullscreen), same as the control-bar glyphs. */
+[part='context-menu-icon'] {
+  display: inline-flex;
+  align-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+}
+
+[part='context-menu-icon'] svg {
+  width: 36px;
+  height: 36px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='context-menu-icon'],
+playerstack-media-controller[data-fullscreen] [part='context-menu-icon'] svg {
+  width: 54px;
+  height: 54px;
+}
+
+/* Label (StyledContextMenuLabel): 12px horizontal padding, 118% font. */
+[part='context-menu-label'] {
+  padding: 0 12px;
+  font-size: 118%;
+}
+
+/* Checked marker (StyledContextMenuChecked): pushed to the far right, only shown on the
+   ACTIVE loop item (`[data-active]`). Hidden by default so the row shows only when engaged. */
+[part='context-menu-checked'] {
+  display: none;
+  align-items: center;
+  font-size: 109%;
+  margin-right: 12px;
+  margin-left: auto;
+}
+
+[part='context-menu-checked'] svg {
+  width: 24px;
+  height: 24px;
+}
+
+[part='context-menu-item'][data-active] [part='context-menu-checked'] {
+  display: inline-flex;
+}
+
+playerstack-media-controller[data-fullscreen] [part='context-menu-item'] {
+  height: 49px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Heatmap (StyledHeatmapContainer / StyledHeatmapSvg).                       */
+/* Hidden (scaled to 0) until active; scales up from the bottom edge.          */
+/* -------------------------------------------------------------------------- */
+[part='heatmap'] {
+  position: absolute;
+  left: 0;
+  bottom: 6px;
+  width: 100%;
+  height: 30px;
+  pointer-events: none;
+  z-index: 2;
+  transform-origin: bottom center;
+  opacity: 0;
+  transform: scaleY(0);
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+
+/* Gate on the value: `data-active` is reflected as the always-present `"true"`/`"false"`. */
+playerstack-heatmap[data-active='true'] [part='heatmap'] {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+playerstack-media-controller[data-fullscreen] [part='heatmap'] {
+  height: 40px;
+}
+
+[part='heatmap-svg'] {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+[part='heatmap-path'] {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Bright played-overlay stroke (clipped to the played fraction), parity with the original
+   HeatmapGraph "played portion brighter". */
+[part='heatmap-path-played'] {
+  fill: none;
+  stroke: rgba(255, 255, 255, 1);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* -------------------------------------------------------------------------- */
+/* AdsOverlay (skip button/message + progress + click region).               */
+/* Hidden until an ad is active; the skip button flushes to the right edge.   */
+/* -------------------------------------------------------------------------- */
+[part='ad-overlay'] {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  display: none;
+}
+
+playerstack-ad-overlay[data-active] [part='ad-overlay'] {
+  display: block;
+}
+
+/* Keep the ad overlay (banner + skip) ABOVE the control chrome. The overlay-host base gives every
+   overlay host `z-index:5`, but the mobile chrome (scrim `z-index:5`, top/bottom bars + center
+   controls `z-index:7`) would otherwise stack over the ad host — dimming the banner behind the
+   scrim and burying the Skip button under the bars once the controls appear. Raising the ad host
+   to `z-index:8` keeps the ad gadgets on top of the chrome (still below the settings dropdown /
+   context menu at `z-index:20`, which are suppressed during ads anyway). */
+playerstack-ad-overlay {
+  z-index: 8;
+}
+
+/* Ad click region: it spans the ad area but must NOT swallow the center click — clicking the
+   video center toggles PLAY/PAUSE during an ad exactly like normal playback (the original kept
+   the center `PlayState` toggle mounted during ads). So the region is click-THROUGH
+   (`pointer-events:none`) and the center `playerstack-play-state` layer (below it) receives the
+   toggle click. Only the Skip button stays interactive. */
+[part='ad-click'] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Skip button (StyledSkipButton): flush-right pill, no right border. During the COUNTDOWN
+   (not yet skippable) it shows only a number and must size to its content — a small compact
+   box, matching the original `StyledSkipMessage` being narrower than the wide `Skip ad` button.
+   ONCE skippable it shows the "Skip ad" label at the fixed 70px (86px fullscreen) width. So the
+   default is content-sized (`width:auto`, min 38px, padded), and `[data-can-skip='true']` gives
+   the fixed skip width. */
+[part='ad-skip-button'] {
+  position: absolute;
+  right: 0;
+  bottom: 74px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: auto;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 12px;
+  font-size: 15px;
+  font-weight: 400;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-right: 0;
+  border-radius: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  text-shadow: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+/* Skippable: the wide "Skip ad" pill at the original fixed width (padding not needed). */
+playerstack-ad-overlay[data-can-skip='true'] [part='ad-skip-button'] {
+  width: 70px;
+  padding: 0;
+}
+
+playerstack-media-controller[data-fullscreen] playerstack-ad-overlay[data-can-skip='true'] [part='ad-skip-button'] {
+  width: 86px;
+}
+
+[part='ad-skip-button']:hover:not([disabled]) {
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid #fff;
+  border-right: 0;
+}
+
+[part='ad-skip-button'][disabled] {
+  cursor: default;
+}
+
+/* Countdown phase (`data-can-skip='false'`): the affordance is the original `StyledSkipMessage`
+   — a wider box (97x43 / 110x50 fullscreen) with a dimmer background, holding the countdown
+   number PLUS the original-video poster preview. Content-sized so the poster fits; no padding
+   here (the countdown text + preview carry their own). */
+playerstack-ad-overlay[data-can-skip='false'] [part='ad-skip-button'] {
+  height: 43px;
+  padding: 0;
+  gap: 0;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-right: 0;
+  cursor: default;
+}
+
+playerstack-media-controller[data-fullscreen] playerstack-ad-overlay[data-can-skip='false'] [part='ad-skip-button'] {
+  height: 50px;
+}
+
+/* Countdown number (StyledSkipCountdownText): centered, padded, sits left of the poster preview. */
+[part='ad-skip-countdown'] {
+  display: inline-block;
+  font-weight: 500;
+  text-align: center;
+  padding: 0 8px;
+  vertical-align: middle;
+  white-space: pre;
+  color: #fff;
+  font-size: 14px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='ad-skip-countdown'] {
+  font-size: 20px;
+}
+
+/* Original-video poster preview (StyledSkipPreviewImage): a small thumbnail (73x41 / larger in
+   fullscreen) of what resumes once the ad is skipped, shown right of the countdown number.
+   Hidden (display:none inline) once skippable or when no poster is provided. */
+[part='ad-skip-preview'] {
+  display: inline-block;
+  vertical-align: middle;
+  width: 73px;
+  height: 41px;
+  object-fit: fill;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+playerstack-media-controller[data-fullscreen] [part='ad-skip-preview'] {
+  width: 86px;
+  height: 48px;
+}
+
+/* Fullscreen sizes the skip affordance taller/lower; WIDTH is NOT set here so the countdown
+   stays content-sized and only the skippable state (rule above) gets the fixed 86px width. */
+playerstack-media-controller[data-fullscreen] [part='ad-skip-button'] {
+  height: 44px;
+  bottom: 92px;
+  font-size: 145%;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ad BANNER (bottom-left gadget) — port of the original AdsOverlay banner:     */
+/* StyledAdBannerWrapper / StyledAdBanner / StyledAdIcon / StyledAdInfo /        */
+/* StyledAdTitle / StyledAdUrl / StyledAdButton / StyledSponsoredLabel. Sits     */
+/* just above the control bar, follows the timeline on autohide, and is          */
+/* click-through except the banner card + CTA button.                            */
+/* -------------------------------------------------------------------------- */
+[part='ad-banner-wrapper'] {
+  position: absolute;
+  left: 12px;
+  bottom: 44px;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  transition: bottom 0.25s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Follows the timeline down when controls hide (StyledAdBannerWrapper `hiding`). */
+playerstack-media-controller[data-hiding] [part='ad-banner-wrapper'] {
+  bottom: 8px;
+}
+
+/* Fullscreen lifts the banner to clear the taller control bar. */
+playerstack-media-controller[data-fullscreen] [part='ad-banner-wrapper'] {
+  left: 20px;
+  gap: 6px;
+  bottom: 64px;
+}
+
+[part='ad-banner'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 4px;
+  padding: 6px 10px;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+[part='ad-banner']:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+[part='ad-icon'] {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+[part='ad-info'] {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+[part='ad-title'] {
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+
+[part='ad-url'] {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+
+[part='ad-button'] {
+  /* Override the shared control-button primitives ([part$='-button'] -> 36x36, padding:0,
+     border:0, opacity:0.8, display:flex) so the CTA sizes to its label and shows its outline
+     (parity with the original StyledAdButton). Without these resets the fixed 36x36 box clipped
+     "Visit site". */
+  width: auto;
+  height: auto;
+  opacity: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 2px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s;
+  text-shadow: none;
+}
+
+[part='ad-button']:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #fff;
+}
+
+[part='ad-sponsored'] {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Mobile: the banner uses the same layout; nudge it above the mobile bottom bar. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='ad-banner-wrapper'] {
+  left: 12px;
+  bottom: 44px;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='ad-banner-wrapper'] {
+  bottom: 8px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Poster overlay (video skin) — port of the original StyledOverlayPoster: the  */
+/* cover image shown before playback / after end, fading out during playback.   */
+/* Targeted by the `.playerstack-poster` CLASS (not `[part='poster']`, which the */
+/* AUDIO skin uses for its 56px artwork) to avoid a cross-skin collision. The    */
+/* framework skin toggles `data-visible` from `currentTime<=0 || ended`.         */
+/* -------------------------------------------------------------------------- */
+.playerstack-poster {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0, 0, 0.2, 1);
+}
+
+.playerstack-poster[data-visible='true'] {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Desktop control-bar Captions (CC) + Cast buttons (parity with the original  */
+/* DesktopPlayerSkin CaptionsButton + cast button). Both are framework-rendered */
+/* `<button part="captions-button|cast-button">` in the right control cluster;  */
+/* they match the shared 36px control button, and the CC glyph brightens when   */
+/* captions are active (`data-active='true'`). Cast is slightly smaller (20px)  */
+/* like the original. */
+/* -------------------------------------------------------------------------- */
+[part='captions-button'],
+[part='cast-button'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.8;
+  border-radius: var(--playerstack-radius-md, 8px);
+  transition: opacity 0.15s ease;
+  flex: 0 0 auto;
+}
+
+[part='captions-button']:hover,
+[part='cast-button']:hover,
+[part='captions-button']:focus,
+[part='cast-button']:focus {
+  opacity: 1;
+}
+
+/* Active captions: keep the CC glyph fully bright (the active icon already differs). */
+[part='captions-button'][data-active='true'] {
+  opacity: 1;
+}
+
+/* CC glyph matches the other desktop control glyphs (parity with the original `CaptionsButton`
+   -> `buildIconProps(fullscreen)` = 36×36, 54×54 fullscreen — the SVG at the full button size,
+   same visual scale as the settings gear). Sized explicitly so it never falls back to the 1.5em
+   default nor an inherited smaller value. */
+[part='captions-button'] .icon,
+[part='captions-button'] [part='icon'],
+[part='captions-button'] svg {
+  width: 36px;
+  height: 36px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='captions-button'] .icon,
+playerstack-media-controller[data-fullscreen] [part='captions-button'] [part='icon'],
+playerstack-media-controller[data-fullscreen] [part='captions-button'] svg {
+  width: 54px;
+  height: 54px;
+}
+
+/* Cast glyph is a touch smaller (parity: 20px, 28px fullscreen). */
+[part='cast-button'] .icon,
+[part='cast-button'] [part='icon'],
+[part='cast-button'] svg {
+  width: 20px;
+  height: 20px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='captions-button'],
+playerstack-media-controller[data-fullscreen] [part='cast-button'] {
+  width: 54px;
+  height: 54px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='cast-button'] .icon,
+playerstack-media-controller[data-fullscreen] [part='cast-button'] [part='icon'],
+playerstack-media-controller[data-fullscreen] [part='cast-button'] svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sprite preview (mobile seek thumbnail) — port of the original SpritePreview */
+/* StyledSpriteOverlay/Frame: a full-stage frame shown while scrubbing that     */
+/* renders one sprite sheet cell scaled to cover the player. Fades with          */
+/* `data-visible`; the framework component sets the frame background inline.     */
+/* -------------------------------------------------------------------------- */
+[part='sprite-preview'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  background-color: #000;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+}
+
+[part='sprite-preview'][data-visible='true'] {
+  opacity: 1;
+}
+
+[part='sprite-preview-frame'] {
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Live-stream AD overlay (Twitch-style) — port of the original LiveAdOverlay  */
+/* styled-components onto `[part]` selectors. The ad <video> fills the stage    */
+/* over the (muted, still-playing) live stream; an AD badge + title sit top,    */
+/* a "Live Stream" pill + CTA + Skip sit bottom, and a yellow progress bar      */
+/* rides the bottom edge. Fades in on mount, fades out while `[data-exiting]`.   */
+/* -------------------------------------------------------------------------- */
+@keyframes playerstack-live-ad-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes playerstack-live-ad-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* While a live ad break is active, the overlay HOST must sit above the control chrome
+   (`.playerstack-controls` z-index:11, `playerstack-time-slider` z-index:12) — otherwise the
+   normal controls paint over the ad gadgets on hover. The overlay-host base rule gives every
+   overlay host `z-index:5`, and the inner `[part='live-ad']` `z-index:20` only competes INSIDE
+   the host's own stacking context, so it can never lift the overlay above the sibling controls.
+   Raising the HOST is the same fix the VOD ad uses (`playerstack-ad-overlay { z-index: 8 }`).
+   Gated on `data-active` (reflected by the element) so the click-through idle host never covers
+   the UI. `30` clears the controls, the time-slider and the settings/context-menu (20/21) layers,
+   matching the monolith's opaque full-stage live-ad container that sat above the bar. */
+playerstack-live-ad[data-active='true'] {
+  z-index: 30;
+}
+
+[part='live-ad'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  animation: playerstack-live-ad-fade-in 0.3s ease-out forwards;
+}
+
+/* Exit animation (original `$exiting`): fade out + become click-through. */
+[part='live-ad'][data-exiting='true'] {
+  animation: playerstack-live-ad-fade-out 0.4s ease-in forwards;
+  pointer-events: none;
+}
+
+[part='live-ad-video'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  z-index: 1;
+}
+
+[part='live-ad-top-bar'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+[part='live-ad-badge'] {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 6px;
+  background: #f5c518;
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  line-height: 1;
+  user-select: none;
+}
+
+[part='live-ad-info'] {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 400;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
+  user-select: none;
+}
+
+[part='live-ad-bottom-bar'] {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 3;
+  pointer-events: none;
+}
+
+[part='live-ad-actions'] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 12px 8px;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+[part='live-ad-stream-badge'] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: rgba(30, 30, 30, 0.85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 3px;
+  user-select: none;
+  pointer-events: none;
+  margin-right: auto;
+}
+
+[part='live-ad-stream-badge']::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e91916;
+  flex-shrink: 0;
+}
+
+[part='live-ad-cta'] {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background: #fff;
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+[part='live-ad-cta']:hover {
+  opacity: 0.85;
+}
+
+/* Skip button: dim/non-interactive during the countdown (`data-can-skip='false'`), filled + */
+/* clickable once skippable (`data-can-skip='true'`) — original `$canSkip` branch. */
+[part='live-ad-skip'] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 3px;
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+[part='live-ad-skip'][data-can-skip='false'] {
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  cursor: default;
+}
+
+[part='live-ad-skip'][data-can-skip='true'] {
+  background: rgba(255, 255, 255, 0.95);
+  color: #000;
+  border: none;
+  cursor: pointer;
+}
+
+[part='live-ad-skip'][data-can-skip='true']:hover {
+  background: #fff;
+}
+
+[part='live-ad-progress'] {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+[part='live-ad-progress-bar'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #f5c518;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.25s linear;
+}
+
+/* NOTE: there is intentionally NO separate `[part='ad-progress']` bar. The ORIGINAL used the
+   normal TimeSlider (tinted yellow via `adMode`) AS the ad progress bar — a SINGLE timeline —
+   so `playerstack-ad-overlay` no longer renders its own progress element. Ad progress is driven
+   through the shared store into `[part='time-slider']`, whose played fill turns yellow under the
+   controller-host `[data-ad-active]` hook below. */
+
+/* -------------------------------------------------------------------------- */
+/* LiveAdOverlay animations (fadeIn/fadeOut + progress). The live-indicator     */
+/* element reuses the ad-overlay in live mode; keep the fade keyframes here.    */
+/* -------------------------------------------------------------------------- */
+@keyframes playerstack-ad-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes playerstack-ad-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Double-tap skip overlay (SkipOverlay).                                     */
+/* Two 55%-wide gesture zones with a directional gradient + pulsing arrows.   */
+/* -------------------------------------------------------------------------- */
+[part='double-tap'] {
+  position: absolute;
+  inset: 0;
+  /* z-index 6 (parity with the original StyledSkipTapArea z-index:6): the double-tap zones sit
+     BELOW the mobile center controls (z-index 7). So when controls are VISIBLE the center
+     play/pause button wins the tap (toggles playback), and only when controls are hidden — or
+     the tap lands away from the center button — do the zones receive it (single tap = toggle
+     controls, double tap = skip). Previously this host was z-index 8, ABOVE the center controls,
+     so the skip zones swallowed EVERY center tap and play/pause never fired on mobile. */
+  z-index: 6;
+  pointer-events: none;
+}
+
+[part='double-tap-left'],
+[part='double-tap-right'] {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  z-index: 6;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[part='double-tap-left'] {
+  left: 0;
+}
+
+[part='double-tap-right'] {
+  right: 0;
+}
+
+/* Skip indicator (StyledSkipOverlay + text): centered feedback, hidden until active. */
+[part='skip-indicator'] {
+  position: absolute;
+  top: 0;
+  width: 55%;
+  height: 100%;
+  z-index: 8;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-size: 12px;
+  color: #ccc;
+}
+
+playerstack-double-tap[data-active] [part='skip-indicator'] {
+  display: flex;
+}
+
+/* Direction gradient (SkipOverlay `direction`). `data-direction` is reflected on the
+   `playerstack-double-tap` element host from a STRING (`'forward'`/`'backward'`). Because
+   reflectState JSON-encodes values, a string lands in the attribute WITH its JSON quotes —
+   the DOM value is literally `"forward"` (see playerstack-double-tap.spec: the attribute is
+   `'"forward"'`). So the selector value MUST include the embedded double quotes; a bare
+   `='forward'` would never match. */
+playerstack-double-tap[data-direction='"forward"'] [part='skip-indicator'] {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.4) 40%, transparent 100%);
+}
+
+playerstack-double-tap[data-direction='"backward"'] [part='skip-indicator'] {
+  left: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.4) 40%, transparent 100%);
+}
+
+/* Double-tap arrow pulse (seekFade keyframes). */
+@keyframes playerstack-seek-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Skip-indicator chevrons + text (parity with the original SkipOverlay: three animated
+   `mobileSkipChevronIcon`s + a "{seconds} {label}" line). The three chevrons pulse with the
+   seek-fade keyframes, staggered so they animate in sequence; the whole icon row rotates 180°
+   for a BACKWARD skip (mirroring `StyledSkipIconContainer direction === 'backward'`). */
+[part='skip-indicator-icons'] {
+  display: inline-flex;
+  align-items: center;
+}
+
+playerstack-double-tap[data-direction='"backward"'] [part='skip-indicator-icons'] {
+  transform: rotate(180deg);
+}
+
+[part='skip-indicator-icons'] .icon-skip-chevron {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+  animation: playerstack-seek-fade 1s infinite;
+}
+
+[part='skip-indicator-icons'] .icon-skip-chevron:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+[part='skip-indicator-icons'] .icon-skip-chevron:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+[part='skip-indicator-icons'] .icon-skip-chevron svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+[part='skip-indicator-text'] {
+  font-size: 12px;
+  color: #ccc;
+  margin-top: 4px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Icon primitive (playerstack-icon wrapper + Icon component).               */
+/* -------------------------------------------------------------------------- */
+[part='icon'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+[part='icon'] svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Audio controls cluster (playerstack-audio-controls).                       */
+/* A tight horizontal row: play/pause, time read-out, progress/seek bar.      */
+/* -------------------------------------------------------------------------- */
+[part='audio-controls'] {
+  display: flex;
+  align-items: center;
+  gap: var(--playerstack-space-sm, 8px);
+  padding: var(--playerstack-space-sm, 8px) var(--playerstack-space-md, 12px);
+  width: 100%;
+  background: var(--playerstack-color-control-bg, rgba(0, 0, 0, 0.55));
+}
+
+[part='audio-controls'] [part='slider'] {
+  flex: 1;
+  position: relative;
+  height: 4px;
+  cursor: pointer;
+}
+
+[part='audio-controls'] [part='track'] {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  height: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
+}
+
+[part='audio-controls'] [part='track-fill'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #cb0e0b;
+  border-radius: 1px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mobile skin (max-width: 575px) — same breakpoint as the reactjs mobile skin.*/
+/* MobileTopBar / MobileBottomBar / MobileCenterControls / MobileSettingsPanel */
+/* / MobileProgressBar visuals. Visibility is driven by data-hiding on the host*/
+/* (mapped from the `$visible` interpolation).                                 */
+/* -------------------------------------------------------------------------- */
+/* The mobile skin activates on `playerstack-media-controller[data-skin-mode='mobile']` — the
+   skin reflects that when the viewport is mobile OR when the consumer FORCES `skinMode='mobile'`
+   (so it works on a desktop viewport too, which a media-query-only gate could not do). Every
+   mobile rule is scoped under that host attribute. When mobile is active the DESKTOP control bar
+   + standalone time-slider are hidden and the mobile parts take over. */
+playerstack-media-controller[data-skin-mode='mobile'] .playerstack-controls,
+playerstack-media-controller[data-skin-mode='mobile'] > playerstack-time-slider {
+  display: none;
+}
+
+/* Dark scrim behind mobile controls (StyledOverlay). Sits at z-index:4 so it darkens the video
+   but stays BELOW the stage overlays (spinner, play-state, prevented-tip, captions) which share
+   z-index:5. The control chrome (top/bottom/center bars at z-index:6–7) stays above both. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-overlay'] {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 4;
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0, 0, 0.2, 1);
+}
+
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-overlay'] {
+  opacity: 0;
+}
+
+/* Top bar (StyledMobileTopBar): top-right settings cluster. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 7;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.25s cubic-bezier(0, 0, 0.2, 1);
+}
+
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-top-bar'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Top-bar buttons (StyledMobileSettingsButton): 32px transparent icon buttons. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0.8;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] button:hover {
+  opacity: 1;
+}
+
+/* Top-bar glyph sizing (parity: original mobile settings/captions icons at 24×24). The glyphs are
+   rendered by `playerstack-icon` as a `[part='icon']` span wrapping the svg — NOT a `.icon` class
+   — so the rule must target `[part='icon']` (and the `playerstack-icon` host) too; targeting only
+   `.icon`/`svg` left the icon SPAN at its intrinsic ~21px and squished the svg. Pin the host, the
+   `[part='icon']` box and the svg all to 24×24 so the gear/captions render at the original size. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] playerstack-icon,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] [part='icon'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] .icon,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] svg {
+  width: 32px;
+  height: 32px;
+}
+
+/* The cast/transmit glyph is slightly smaller (22px) than the gear/captions (24px) — parity with
+   the original mobile top bar, which rendered `<Icon icon={castIcon} width={22} height={22}/>`. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] button[aria-label='Google Cast'] playerstack-icon,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] button[aria-label='Google Cast'] [part='icon'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] button[aria-label='Google Cast'] svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Center controls (StyledMobileCenterControls): centered play/prev/next. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] {
+  position: absolute;
+  top: 50%;
+  width: 100%;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 60px;
+  z-index: 7;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.25s cubic-bezier(0, 0, 0.2, 1);
+}
+
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-center-controls'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Mobile center play button (StyledMobilePlayButton): 56px. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='play-button'] {
+  width: 56px;
+  height: 56px;
+  background: none;
+  border: none;
+  opacity: 0.9;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mobile center PLAY-STATE (playerstack-play-state) overrides.                */
+/*                                                                            */
+/* On mobile the center affordance is the `playerstack-play-state` element     */
+/* placed INSIDE `[part='mobile-center-controls']`. Its DESKTOP styling is a    */
+/* full-stage black scrim (`inset:0`, `rgba(0,0,0,0.5)`) that is shown ONLY     */
+/* while paused/ended (`data-showing`). That is WRONG for the mobile skin,      */
+/* which (parity with the original MobileCenterControls > StyledMobilePlayButton)*/
+/* needs a compact 56px TRANSPARENT button that is visible whenever the         */
+/* CONTROLS are visible — showing the play glyph when paused, the REPLAY glyph  */
+/* when ended, and the PAUSE glyph while playing — and toggles play/pause on     */
+/* tap. So here the play-state is reshaped to that 56px button, its scrim is     */
+/* removed, and its visibility is driven by the controls-visible state          */
+/* (`:not([data-hiding])`) instead of the paused-only `data-showing` gate.       */
+/* -------------------------------------------------------------------------- */
+
+/* The play-state HOST element defaults to `position:absolute; inset:0` (overlay host base), which
+   stretches it full-width inside the centered mobile controls row and pins its button to the
+   LEFT. On mobile make the host a compact inline 56px box so the flex row centers it like the
+   original MobileCenterControls play button. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] playerstack-play-state {
+  position: relative;
+  inset: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+}
+
+/* Reshape the overlay + button into the compact 56px center button (no full-stage scrim). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='play-state'] {
+  position: relative;
+  inset: auto;
+  width: 56px;
+  height: 56px;
+  overflow: visible;
+  background: none;
+  /* Visibility is controlled by the button rule below (via the controls-visible state), not by
+     the desktop paused-only `data-showing` opacity gate. */
+  opacity: 1;
+  pointer-events: auto;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='play-state-button'] {
+  width: 56px;
+  height: 56px;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.9;
+  font-size: 0;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='play-state-button']:hover,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='play-state-button']:focus {
+  background: none;
+  opacity: 1;
+}
+
+/* The center glyph fills the 56px button (override the desktop 20%/14% width). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='play-state-button'] .icon {
+  width: 100%;
+  height: 100%;
+}
+
+/* Glyph selection on mobile (parity with StyledMobilePlayButton, which used the BOLD/LARGE
+   `mobilePlayIcon`/`mobilePauseIcon` — not the thin desktop play/pause). On mobile:
+     - HIDE all desktop center glyphs (`icon-play`/`icon-pause`) — they are the thin 36-viewBox
+       bars that rendered too small in the 56px button;
+     - show the MOBILE play glyph while paused, the MOBILE pause glyph while playing;
+     - keep the shared REPLAY glyph when ended (there is no mobile replay icon).
+   All gated by the reflected `data-playing`/`data-ended` state. */
+
+/* Hide the (thin) desktop play/pause center glyphs on mobile. */
+playerstack-media-controller[data-skin-mode='mobile']
+  [part='mobile-center-controls']
+  [part='play-state-button']
+  .icon-play,
+playerstack-media-controller[data-skin-mode='mobile']
+  [part='mobile-center-controls']
+  [part='play-state-button']
+  .icon-pause {
+  display: none;
+}
+
+/* Paused (not ended): show the MOBILE play glyph. */
+playerstack-media-controller[data-skin-mode='mobile']
+  [part='mobile-center-controls']
+  playerstack-play-state:not([data-ended='true'])[data-playing='false']
+  .icon-play-mobile {
+  display: inline-flex;
+}
+
+/* Playing (not ended): show the MOBILE pause glyph. */
+playerstack-media-controller[data-skin-mode='mobile']
+  [part='mobile-center-controls']
+  playerstack-play-state:not([data-ended='true'])[data-playing='true']
+  .icon-pause-mobile {
+  display: inline-flex;
+}
+
+/* Ended: the shared replay glyph shows (handled by the base `[data-ended='true']` rules); the
+   mobile play/pause variants stay hidden (default). */
+
+/* Visibility follows the CONTROLS: hidden (and non-interactive) while the controller is hiding,
+   shown otherwise — so the center button appears with the rest of the chrome and disappears with
+   it, exactly like the original MobileCenterControls `$visible` gate. This overrides the desktop
+   paused-only `data-showing` opacity gate that would otherwise hide the button during playback. */
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-center-controls'] playerstack-play-state,
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-center-controls'] [part='play-state'],
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-center-controls'] [part='play-state-button'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Loading/buffering: the center SPINNER must REPLACE the play/pause button (parity with the
+   original MobileCenterControls `isLoading ? <Spinner/> : <PlayButton/>`), not sit BEHIND it (the
+   reported bug: the spinner ring rendered around the pause glyph). While the controller reflects
+   `data-loading`/`data-buffering`, HIDE the mobile center play-state button entirely so only the
+   mobile spinner shows — a clean, fluid swap of the SVG for the ring. */
+playerstack-media-controller[data-skin-mode='mobile'][data-loading] [part='mobile-center-controls'] playerstack-play-state,
+playerstack-media-controller[data-skin-mode='mobile'][data-buffering] [part='mobile-center-controls'] playerstack-play-state {
+  display: none;
+}
+
+/* Mobile spinner = the ORIGINAL StyledMobileSpinner: a compact 40px ring centered on the stage
+   with NO full-stage dark scrim (the desktop `[part='spinner']` paints a `rgba(0,0,0,0.5)`
+   backdrop — wrong for mobile, which only showed the ring in the center-controls slot). Override
+   the mobile spinner container to be transparent + centered. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='spinner'] {
+  background: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile ring = EXACTLY the original StyledMobileSpinner `& > div`: a 40px circle, 3px border at
+   `rgba(255,255,255,0.3)` with a solid white TOP, spinning at 0.8s. The base `[part='spinner-
+   indicator']` has TWO conflicting definitions in this file (a 48px faint-arc "loading arc" with
+   `rgba(0.15)` sides + white LEFT, and the 40px mobile ring); to guarantee the mobile skin gets
+   the original mobile ring regardless of cascade order, pin it explicitly here. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='spinner-indicator'] {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-right-color: rgba(255, 255, 255, 0.3);
+  border-bottom-color: rgba(255, 255, 255, 0.3);
+  border-left-color: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  animation: playerstack-spinner 0.8s linear infinite;
+}
+
+/* Mobile prev/next nav buttons (StyledMobileNavButton): 48px, dimmed when disabled. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='nav-prev'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='nav-next'] {
+  width: 48px;
+  height: 48px;
+  background: none;
+  border: none;
+  padding: 6px;
+  color: #fff;
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] button[disabled] {
+  color: #757575;
+  opacity: 1;
+  cursor: default;
+}
+
+/* Center loading spinner (StyledMobileSpinner): a 40px ring inside the 56px slot. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-spinner'] {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-spinner']::after {
+  content: '';
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: playerstack-spinner 0.8s linear infinite;
+}
+
+/* Bottom bar (StyledMobileBottomBar): progress + time + fullscreen. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px 8px 16px;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.25s cubic-bezier(0, 0, 0.2, 1);
+}
+
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-bottom-bar'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Mobile time read-out (StyledMobileTime). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='time'] {
+  font-size: 12px;
+  color: #fff;
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: auto;
+  line-height: normal;
+  padding: 0;
+}
+
+/* Mobile LIVE badge in the bottom bar (parity with StyledMobileLiveBadge/Dot): a compact
+   inline pill with a status dot + "Live" text. `margin-right:auto` pushes the rest of the row
+   (progress + fullscreen) to the right, matching the original layout. `data-at-edge` reddens the
+   dot + brightens the text (the desktop rules above already do the color swap by value). */
+/* The HOST element `playerstack-live-indicator` is the direct flex child of the bottom bar;
+   `margin-right:auto` must live HERE (not on its inner `[part='live-indicator']` div) so flex
+   auto-margin pushes the fullscreen button to the far right in pure-live mode (no timeline).
+   When a time-slider IS present (liveDVR), the auto-margin is dropped so the slider gets the
+   flex space it needs. The `:has()` selector detects the time-slider sibling. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-live-indicator {
+  margin: 0 auto 0 0;
+  flex-shrink: 0;
+}
+
+/* When the time-slider is visible (liveDVR), drop the auto-margin so flex:1 on the slider
+   fills the available space instead of the margin consuming it. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar']:has(playerstack-time-slider) playerstack-live-indicator {
+  margin: 0;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='live-indicator'] {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 8px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 36px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='live-dot'] {
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+}
+
+/* In pure-live (no DVR) there is NO time-slider, so the badge is the only timeline affordance;
+   the `margin-right:auto` still pushes fullscreen to the far right. */
+
+/* Mobile fullscreen button in the bottom bar. Parity with the original StyledMobileFullscreenButton:
+   a 36px button with a 36×36 glyph (the migration had shrunk it to 32px). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='fullscreen-button'] {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+/* The fullscreen glyph fills the 36px button (original rendered the SVG at 36×36). The desktop
+   control-glyph rule sizes `.icon` to 100% of the button, so pinning the button to 36px yields a
+   36px glyph — matching the original mobile bottom-bar fullscreen icon. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='fullscreen-button'] .icon,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='fullscreen-button'] svg {
+  width: 36px;
+  height: 36px;
+}
+
+/* Mobile progress bar: the time-slider sits inline in the bottom bar, filling the free space
+   between the time read-out and the fullscreen button. Override the desktop absolute placement. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider {
+  position: static;
+  flex: 1;
+  min-width: 0;
+  bottom: auto;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='time-slider'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-progress'] {
+  flex: 1;
+  height: 20px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='track'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-progress'] [part='track'] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='track-buffered'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-progress'] [part='track-buffered'] {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 1px;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='track-fill'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-progress'] [part='track-fill'] {
+  height: 2px;
+  background: #cb0e0b;
+  border-radius: 1px;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='thumb'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-progress'] [part='thumb'] {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #cb0e0b;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mobile time-slider OVERRIDES. The mobile bottom bar reuses the desktop      */
+/* `playerstack-time-slider` element, so its DESKTOP rules (thick hover rail,  */
+/* popped handle, chapter overlay geometry) leak in and break the flat mobile  */
+/* progress bar. These rules (higher specificity via `[data-skin-mode=mobile]`)*/
+/* neutralize the desktop affordances and restore the MobileProgressBar /      */
+/* MobileChapterSegments visuals: flat 2px rail, 12px handle inset so it never */
+/* overflows, red fill, and chapter segments in the mobile color scale.        */
+/* -------------------------------------------------------------------------- */
+
+/* The slider inner box fills the bottom-bar row height (20px) and insets the handle by its
+   radius (6px) at both ends so the 12px handle never crosses the player edge. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='slider'] {
+  position: relative;
+  height: 20px;
+  margin: 0 6px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Flat 2px rail (no desktop hover thickening). The visible grey rail background applies ONLY when
+   there are NO chapters (`:not([data-has-chapters])`) — parity with the original mobile skin,
+   which rendered the plain `StyledMobileProgressTrack` ONLY in the non-chapter branch and the
+   `MobileChapterSegments` (with their OWN per-segment rails) otherwise. Gating on
+   `:not([data-has-chapters])` keeps the grey rail from re-appearing ON HOVER over the whole
+   timeline when chapters exist (the reported full-width grey bar that covered the chapter gaps). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider:not([data-has-chapters]) [part='track'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar']:hover playerstack-time-slider:not([data-has-chapters]) [part='track'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider:not([data-has-chapters]) [part='slider']:hover [part='track'] {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
+  transform: translateY(-50%);
+}
+
+/* Shape (height/position) for the rail in the chapters case too, but WITHOUT a background — the
+   chapter segments are the timeline; the plain rail must stay invisible in every state (rest AND
+   hover) so it never paints a full-width grey bar over the chapter gaps. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider[data-has-chapters] [part='track'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar']:hover playerstack-time-slider[data-has-chapters] [part='track'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider[data-has-chapters] [part='slider']:hover [part='track'] {
+  height: 2px;
+  background: transparent;
+  border-radius: 1px;
+  transform: translateY(-50%);
+}
+
+/* Plain buffered/fill rails only paint in the NON-chapter case (the chapter segments carry their
+   own buffered/filled sub-fills). In the chapters case the element already zeroes their widths,
+   but scope the colors to `:not([data-has-chapters])` for clarity/parity. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider:not([data-has-chapters]) [part='track-buffered'] {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider:not([data-has-chapters]) [part='track-fill'] {
+  height: 2px;
+  background: #cb0e0b;
+}
+
+/* Flat 12px handle (no desktop hover pop). The desktop handle POPS with a `scale(1)` and a
+   `box-shadow: 0 0 0 5px rgba(255,0,0,0.2)` red halo on hover/`[data-time-sliding]`; on mobile
+   that halo rendered as a red square block around the thumb (the reported "element above the
+   timeline"). Force the flat mobile handle with NO box-shadow across the rest, hover, slide and
+   local-sliding states so the halo never appears. `transform` stays the plain centering (no
+   scale-pop) since the mobile handle is always visible at 12px. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='thumb'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar']:hover [part='thumb'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='slider']:hover [part='thumb'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='time-slider']:hover [part='thumb'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='time-slider']:focus [part='thumb'],
+playerstack-media-controller[data-skin-mode='mobile'][data-time-sliding] [part='mobile-bottom-bar'] [part='thumb'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider[data-time-sliding] [part='thumb'] {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #cb0e0b;
+  border: 0;
+  /* `!important` because the desktop touch rule `@media (hover:none),(pointer:coarse)
+     [part='time-slider'] [part='thumb']` and the desktop `[part='time-slider']:hover
+     [part='thumb']` rule (the red `box-shadow:0 0 0 5px rgba(255,0,0,0.2)` halo) live in a
+     media-query / equal-ish specificity that can win on a REAL touch device and paint the big
+     halo/scaled thumb seen on the mobile timeline. Pin the flat 12px handle with no halo and no
+     scale-pop. */
+  box-shadow: none !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+/* Touch/coarse-pointer devices: the desktop `@media (hover:none),(pointer:coarse)` rule pops the
+   handle (`scale(1)`) — on a real phone that combined with the hover halo above to render the
+   oversized thumb + dark ring. Re-pin the flat mobile handle inside the same media query so the
+   real device matches the diagnostics (flat 12px, no ring). */
+@media (hover: none), (pointer: coarse) {
+  playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='thumb'] {
+    width: 12px;
+    height: 12px;
+    box-shadow: none !important;
+    transform: translate(-50%, -50%) !important;
+  }
+}
+
+/* Chapter segments in the mobile bottom bar (MobileChapterSegments): 2px tall row, translucent
+   base, buffered `0.5`, filled red. Overrides the desktop `4px` overlay + white-ish base that
+   was showing through under the red fill. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='chapters'] {
+  height: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  gap: 0;
+  /* `overflow:visible` (parity with the original StyledMobileChapterSegmentsContainer) so the
+     hovered segment's `scaleY(2.5)` grow during a scrub is not clipped. Horizontal overflow is
+     prevented by letting the segments SHRINK (below) rather than by clipping. */
+  overflow: visible;
+}
+
+/* The per-segment widths sum to 100% of the duration, and the flex `gap:2px`s add ON TOP of that,
+   which pushed the LAST segment ~6px past the rail ("llega más allá del límite real"). The ORIGINAL
+   segments were plain flex children (default `flex-shrink:1`), so the row shrank to absorb the gaps
+   and never overflowed. Core inherited `flex:0 0 auto` from the desktop base (no shrink), causing
+   the overflow — so restore shrink here (`flex-shrink:1`, `min-width:0`) to match the original. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='chapter-segment'] {
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
+  flex-shrink: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  border-right: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='chapter-segment']:last-child {
+  border-right: none;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='chapter-segment-buffered'] {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='chapter-segment-filled'] {
+  background: #cb0e0b;
+}
+
+/* Mobile chapter-segment grow — 1:1 PARITY with the original MobileChapterSegments. The original
+   grew ONLY the segment under the pointer to `scaleY(2.5)`, and it set `hoveredIndex` ONLY while
+   ACTIVELY seeking (`seeking && chapterAtCurrentTime`) — never on a plain hover, and it never
+   thickened the whole rail. So on mobile:
+     - the base rail/track and NON-hovered segments stay FLAT (2px) in every state (no whole-row
+       thicken — that read as an exaggerated bar);
+     - the desktop `[data-hovered] { scaleY(2) }` grow is neutralized on plain hover so a stray
+       touch-hover never leaves a segment popped;
+     - ONLY while the slider is actively sliding does the hovered segment grow `scaleY(2.5)` from
+       its center, exactly like the original seek affordance.
+   The `transform-origin:center` keeps the grow symmetric so it never spills only upward. */
+playerstack-media-controller[data-skin-mode='mobile']
+  [part='mobile-bottom-bar']
+  [part='chapter-segment'],
+playerstack-media-controller[data-skin-mode='mobile']
+  [part='mobile-bottom-bar']
+  [part='chapter-segment'][data-hovered] {
+  transform-origin: center center;
+  transform: scaleY(1);
+  transition: transform 0.1s ease;
+}
+
+/* Active scrub: grow ONLY the hovered segment (parity with the original seek affordance). */
+playerstack-media-controller[data-skin-mode='mobile'][data-time-sliding]
+  [part='mobile-bottom-bar']
+  [part='chapter-segment'][data-hovered],
+playerstack-media-controller[data-skin-mode='mobile']
+  [part='mobile-bottom-bar']
+  playerstack-time-slider[data-time-sliding]
+  [part='chapter-segment'][data-hovered] {
+  transform: scaleY(2.5);
+}
+
+/* Hide the desktop hover tooltip/timelens over the mobile slider (mobile uses its own seek UI). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='tooltip'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-bottom-bar'] [part='timelens'] {
+  display: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mobile AD MODE timeline (parity with the original MobileProgressBar `adMode`).*/
+/* During an ad the mobile skin renders NO chapters (CorePlayerSkin passes      */
+/* `chapters={null}` while `isAdActive`), so the PLAIN track carries the ad      */
+/* progress. The original tinted the played fill YELLOW (`#fc0`), hid the        */
+/* handle, and made the bar non-interactive (`onChangeCurrentTime={() => {}}`).  */
+/* The desktop `[data-ad-active]` rules DO this, but the mobile track-fill/thumb  */
+/* overrides (higher specificity) repaint the fill red + keep the flat handle,    */
+/* so the ad styling must be restated at the mobile specificity here.            */
+/* -------------------------------------------------------------------------- */
+
+/* Played fill turns yellow. Must out-specify the mobile track-fill rule
+   `[data-skin-mode='mobile'] [part='mobile-bottom-bar'] playerstack-time-slider:not([data-has-chapters]) [part='track-fill']`
+   (which pins `#cb0e0b`), so mirror that selector shape (+ the `[data-ad-active]` host attr) to win. */
+playerstack-media-controller[data-skin-mode='mobile'][data-ad-active] [part='mobile-bottom-bar'] playerstack-time-slider [part='track-fill'],
+playerstack-media-controller[data-skin-mode='mobile'][data-ad-active] [part='mobile-bottom-bar'] playerstack-time-slider:not([data-has-chapters]) [part='track-fill'] {
+  background: #fc0;
+}
+
+/* Handle hidden during an ad (the ad bar is not seekable). */
+playerstack-media-controller[data-skin-mode='mobile'][data-ad-active] [part='mobile-bottom-bar'] [part='thumb'] {
+  display: none;
+}
+
+/* Non-interactive: default cursor, and the rail never thickens on hover/slide during an ad. */
+playerstack-media-controller[data-skin-mode='mobile'][data-ad-active] [part='mobile-bottom-bar'] [part='slider'] {
+  cursor: default;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'][data-ad-active] [part='mobile-bottom-bar'] [part='track'],
+playerstack-media-controller[data-skin-mode='mobile'][data-ad-active] [part='mobile-bottom-bar'] [part='slider']:hover [part='track'] {
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+/* Mobile settings panel (MobileSettingsPanel): full-surface sliding panel. The element reflects
+   `data-settings-open` on ITS OWN host when open. It only renders under the mobile skin. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-panel'] {
+  position: absolute;
+  z-index: 10;
+  height: 100%;
+  width: 100%;
+  left: 50%;
+  top: 50%;
+  opacity: 0;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  display: none;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.92);
+  font-family: Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+playerstack-mobile-settings[data-settings-open] [part='mobile-settings-panel'] {
+  display: flex;
+  opacity: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  animation: playerstack-settings-panel-in 0.4s ease forwards;
+}
+
+@keyframes playerstack-settings-panel-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Header (StyledSettingsHeader): title row with a bottom divider. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-header'] {
+  padding: 9px 18px 9px 36px;
+  font-size: 20px;
+  line-height: 28px;
+  white-space: nowrap;
+  height: 42px;
+  width: 100%;
+  color: #fff;
+  position: relative;
+  z-index: 6;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-title'] {
+  flex: 1;
+  font-weight: 400;
+}
+
+/* Header icon buttons (StyledIconButton): absolutely positioned left (back/gear) + right (close). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-back'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-close'] {
+  position: absolute;
+  top: 8px;
+  border: 0;
+  background: none;
+  color: #fff;
+  cursor: pointer;
+  z-index: 6;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-back'] {
+  left: 6px;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-close'] {
+  right: 6px;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-back'] .icon,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-back'] svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* On the main page the back button shows the GEAR; on a sub-page it shows the BACK arrow. The
+   element flips `data-mode` on the button; hide the inactive glyph. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-back'] .icon {
+  display: none;
+}
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-back'][data-mode='gear'] .icon:first-child,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-back'][data-mode='back'] .icon:last-child {
+  display: inline-flex;
+}
+
+/* Switches grid (StyledSwitchesGrid) + cards (StyledSwitchItem). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-grid'] {
+  padding: 4px 0;
+  display: flex;
+  flex-flow: row wrap;
+  margin: 0;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-switch'] {
+  width: 86px;
+  height: 78px;
+  overflow: hidden;
+  padding: 4px;
+  cursor: pointer;
+  text-align: center;
+  position: relative;
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1;
+  box-sizing: border-box;
+  white-space: nowrap;
+  color: #fff;
+  background: none;
+  border: 0;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-switch-icon'] {
+  display: block;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 5px;
+  position: relative;
+  top: 5px;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-switch-icon'] svg {
+  width: 36px;
+  height: 36px;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-switch-label'] {
+  display: block;
+  font-size: 15px;
+  color: #fff;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-switch-value'] {
+  font-size: 11px;
+  color: #ccc;
+  line-height: 1;
+  display: block;
+  margin: 6px 0 0;
+  text-align: center;
+}
+
+/* Main page slides left when a sub-page is open (StyledMainPage). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-mainpage'] {
+  transition: opacity 0.15s linear, transform 0.15s ease-out;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+playerstack-mobile-settings[data-subpage] [part='mobile-settings-mainpage'] {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-100%);
+  /* Pull the (hidden) main page OUT of the column flow so the sub-page rises to just under the
+     header instead of leaving the main grid's height as an empty gap at the top. */
+  position: absolute;
+  top: 42px;
+  left: 0;
+  right: 0;
+}
+
+/* Sub page slides in from the right (StyledSubPage). */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-subpage'] {
+  width: 100%;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(100%);
+  transition: opacity 0.15s linear, transform 0.15s ease-out;
+}
+
+playerstack-mobile-settings[data-subpage] [part='mobile-settings-subpage'] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+/* Option rows (StyledOptionItem): active row highlighted. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-option'] {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 25px;
+  margin: 0;
+  font-size: 16px;
+  line-height: 23px;
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: 6px;
+  color: #fff;
+  background: none;
+  border: 0;
+}
+
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-settings-option'][data-active] {
+  background: rgba(180, 60, 60, 0.6);
+}
+
+
+/* ========================================================================== */
+/* Ported AUDIO skin styles (Req 22.2/22.3/22.4/22.5/22.10).                  */
+/*                                                                            */
+/* These rules port the original `audio` `AudioPlayerSkin.styled.js` visuals  */
+/* onto the Core Markup_Contract, keyed by                                    */
+/* `playerstack-media-controller[data-skin='audio']` + the `[part]`s rendered */
+/* by `playerstack-audio-controls`, `playerstack-volume` and                  */
+/* `playerstack-settings`. The audio player is a SINGLE compact control row    */
+/* (StyledControlsRow): transport buttons + a paused-label↔timeline content    */
+/* area + remaining-time + the right-hand volume/settings cluster. The literal */
+/* palette (`#0f0f0f` card, white fills, `rgba(204,54,43,*)` accent) is kept   */
+/* to preserve pixel Visual_Parity. `scopedReset`/`resetStyles` are superseded */
+/* by Core's controller reset above and are not re-ported.                     */
+/* ========================================================================== */
+
+/* -------------------------------------------------------------------------- */
+/* Card surface (StyledAudioPlayerSkin): dark rounded card, hairline border,   */
+/* laid out as a SINGLE horizontal control row (align-items:center) so the     */
+/* transport + content + right cluster sit on one line, exactly like the       */
+/* original `StyledControlsRow`. `overflow: visible` lets the hover tooltips /  */
+/* settings menu escape the card.                                              */
+/* -------------------------------------------------------------------------- */
+playerstack-media-controller[data-skin='audio'] {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+  padding: 8px 12px;
+  background: #0f0f0f;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: visible;
+  color: #eee;
+  user-select: none;
+  outline: none;
+  font-family: var(
+    --playerstack-font-family-base,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif
+  );
+}
+
+/* Kill the VIDEO bottom vignette for the audio skin. The base
+   `playerstack-media-controller::after` lays a `linear-gradient(transparent,
+   rgba(0,0,0,0.7))` scrim (min-height 60px) over the bottom of the stage so controls stay
+   legible over bright video. The audio card is a single ~54px row with NO video behind it,
+   so that scrim would blanket the entire bar with a dark translucent layer — dimming the
+   icons, timeline and text (the "looks like it's behind something" effect). The audio skin
+   has no such background to fight, so the vignette must not exist here. */
+playerstack-media-controller[data-skin='audio']::after {
+  content: none;
+  display: none;
+  background: none;
+}
+
+/* The composed element hosts are inline flex items on the row. `audio-controls`
+   grows to fill; the volume + settings hosts size to content on the right. This
+   overrides the generic `playerstack-audio-controls { flex:0 0 auto }` base for
+   the audio skin so the bar spans the row. */
+playerstack-media-controller[data-skin='audio'] > playerstack-audio-controls {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+}
+
+playerstack-media-controller[data-skin='audio'] > playerstack-volume,
+playerstack-media-controller[data-skin='audio'] > playerstack-settings {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  /* Pull the trailing settings button toward the card edge, matching the original
+     `StyledRightControls { margin-right: -4px }` so the right cluster hugs the edge. */
+  margin-right: -4px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* The control row itself (StyledControlsRow) rendered by the element.         */
+/* Overrides the generic video `[part='audio-controls']` base (red fill, inner */
+/* padding) for the audio skin. No inner padding (the card owns it) and a       */
+/* transparent background.                                                      */
+/* -------------------------------------------------------------------------- */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  width: 100%;
+  background: transparent;
+}
+
+/* Transport buttons (StyledPlayButton / StyledSkipButton): 36px transparent
+   glyph buttons at 0.8 opacity lifting to 1 on hover, white focus ring.
+   NOTE: the skip buttons deliberately DO NOT get `min-width` here — they collapse to
+   `max-width:0` when paused (see below), and a `min-width` would override `max-width`
+   and keep them permanently visible. Only the always-visible play button is pinned to
+   36px min-width. The skip buttons take their 36px from the reveal rule's `max-width`. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='play-button'],
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-back-button'],
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button'] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.8;
+  border-radius: 0;
+  transition: opacity 0.15s ease;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='play-button'] {
+  min-width: 36px;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='play-button']:hover,
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-back-button']:hover,
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button']:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='play-button']:focus-visible,
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-back-button']:focus-visible,
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button']:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] button > * {
+  pointer-events: none;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] .skip-countdown {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+/* Skip-ad glyph is 24px (the original `<Icon skipAdIcon width={24} height={24}>`), smaller than
+   the 36px transport glyphs, so it sits in visual sync with the rest of the row instead of
+   filling the whole play button. Overrides the generic `[part$='-button'] .icon { 100% }`. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] .icon-skip-ad {
+  width: 24px;
+  height: 24px;
+}
+
+/* Skip buttons expand from 0 width only while PLAYING (StyledSkipButtonWrapper
+   `$visible`), and are hidden entirely during ads. `data-playing`/`data-ad-active`
+   are reflected on the audio-controls host. All three rules are scoped under the SAME
+   `playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[...]`
+   ancestor chain so the reveal/hide rules have EQUAL-OR-HIGHER specificity than the
+   collapsed default and actually win (source order then breaks ties). */
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='skip-back-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='skip-forward-button'] {
+  overflow: hidden;
+  /* `min-width:0` is essential: without it the base 36px `min-width` would defeat
+     `max-width:0` and the buttons would never collapse (min-width wins over max-width). */
+  min-width: 0;
+  max-width: 0;
+  opacity: 0;
+  transform: scale(0.5);
+  /* EXIT (playing→paused): the layout collapses fast (max-width snaps in 0.12s) while
+     the visual fade + shrink plays over 0.18s for a smooth "dissolve into play button". */
+  transition: max-width 0.12s cubic-bezier(0.4, 0, 0.2, 1) 0.06s,
+              opacity 0.18s ease 0s,
+              transform 0.18s ease 0s;
+}
+
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='skip-back-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='skip-forward-button'] {
+  max-width: 36px;
+  opacity: 0.8;
+  transform: scale(1);
+  /* ENTER (paused→playing): layout space opens instantly (0.1s), then the button
+     "materializes" with a scale-up + fade-in (0.22s) that feels like it appears
+     rather than grows. The slight delay (0.05s) lets the label start fading first. */
+  transition: max-width 0.1s cubic-bezier(0.0, 0.0, 0.2, 1) 0s,
+              opacity 0.22s cubic-bezier(0.0, 0.0, 0.2, 1) 0.05s,
+              transform 0.22s cubic-bezier(0.0, 0.0, 0.2, 1) 0.05s;
+}
+
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='skip-back-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='skip-forward-button'] {
+  max-width: 0;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: max-width 0.1s cubic-bezier(0.4, 0, 0.2, 1) 0.05s,
+              opacity 0.15s ease 0s,
+              transform 0.15s ease 0s;
+}
+
+/* Content area (StyledContentArea): a 1-cell grid stacking the paused label and
+   the timeline so they occupy the same space and cross-fade. */
+playerstack-media-controller[data-skin='audio'] [part='content-area'] {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  margin-left: 6px;
+}
+
+/* Paused label (StyledMediaLabelWrapper/StyledMediaLabel): visible while NOT
+   playing; fades out when playback starts. The default (visible) and the
+   `[data-playing]` (hidden) rules share the SAME ancestor chain so the reveal/hide
+   toggle has equal-or-higher specificity and wins on source order — otherwise the
+   default `playerstack-media-controller[data-skin='audio'] [part=...]` (3 compounds)
+   out-specifies a `playerstack-audio-controls[data-playing] [part=...]` (2 compounds)
+   and the label never fades / the timeline never reveals. */
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='media-label'] {
+  grid-area: 1 / 1;
+  display: block;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 4px;
+  opacity: 1;
+  pointer-events: auto;
+  /* ENTER (playing→paused / label reappears): fades in after the timeline and buttons
+     have finished their exit animations (~0.2s wait), so nothing overlaps. */
+  transition: opacity 0.2s ease 0.2s;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='media-label-prefix'] {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='media-label'] {
+  opacity: 0;
+  pointer-events: none;
+  /* EXIT (paused→playing / label disappears): fade out quickly so content area
+     is free for the timeline. */
+  transition: opacity 0.12s ease 0s;
+}
+
+/* Timeline wrapper (StyledTimelineWrapper): revealed left→right (clip-path) while
+   playing; hidden otherwise. Same equal-specificity scoping as the label above. */
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='timeline-wrapper'] {
+  grid-area: 1 / 1;
+  min-width: 0;
+  clip-path: inset(0 100% 0 0);
+  pointer-events: none;
+  /* EXIT (playing→paused / timeline hides): collapses at the same pace as buttons fade. */
+  transition: clip-path 0.2s cubic-bezier(0.4, 0, 0.2, 1) 0s;
+}
+
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='timeline-wrapper'] {
+  clip-path: inset(-100px -100px 0 -100px);
+  pointer-events: auto;
+  /* ENTER (paused→playing / timeline reveals): begins as buttons are materializing
+     (0.08s delay), creating a unified "everything appears together" feel rather than
+     a staggered cascade. The timeline sweeps in over 0.28s with deceleration. */
+  transition: clip-path 0.28s cubic-bezier(0.0, 0.0, 0.2, 1) 0.08s;
+}
+
+/* Seek slider + rail (StyledTimelineTrack/Segments): 4px translucent rail, 6px on
+   hover; a flex row of chapter segments (gap 2px) OR a single track. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='slider'] {
+  position: relative;
+  width: 100%;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='track'] {
+  position: relative;
+  top: auto;
+  left: 0;
+  right: 0;
+  transform: none;
+  width: 100%;
+  height: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: transparent;
+  border-radius: 0;
+  transition: height 0.1s ease;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='slider']:hover [part='track'] {
+  height: 6px;
+}
+
+/* Ad mode: neutralize all hover/interaction affordances on the seek slider.
+   The track stays at its resting 4px height, cursor becomes default, and
+   pointer-events are disabled so no seek/scrub can occur during an ad. */
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='slider'] {
+  cursor: default;
+  pointer-events: none;
+}
+
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='slider']:hover [part='track'] {
+  height: 4px;
+}
+
+/* Single-track pieces (no chapters). The track itself shows the translucent base
+   only when there are no segments; segments carry their own base. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='track']:not(:has([part='chapter-segment'])) {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='track-buffered'] {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='track-fill'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #fff;
+  border-radius: 4px;
+}
+
+/* Chapter segments (StyledChapterSegment): each a rounded translucent cell that
+   pops (scaleY 1.5) when it is the active/hovered chapter. */
+playerstack-media-controller[data-skin='audio'] [part='chapter-segment'] {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  transform-origin: center center;
+  transform: scaleY(1);
+  transition: transform 0.1s ease;
+  box-sizing: border-box;
+  border-right: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='chapter-segment']:last-child {
+  border-right: none;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='chapter-segment'][data-hovered] {
+  transform: scaleY(1.5);
+}
+
+playerstack-media-controller[data-skin='audio'] [part='chapter-fill'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #fff;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='chapter-buffered'] {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Per-chapter hover highlight (YouTube-style seek preview within a chapter segment).
+   Lives inside the segment so it grows/shrinks with the segment's scaleY on hover. */
+playerstack-media-controller[data-skin='audio'] [part='chapter-hover'] {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: var(--playerstack-color-track-hover, rgba(255, 255, 255, 0.2));
+  pointer-events: none;
+}
+
+/* Hover highlight (YouTube-style seek preview): from played position to cursor. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='track-hover'] {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  border-radius: 4px;
+  background: var(--playerstack-color-track-hover, rgba(255, 255, 255, 0.2));
+  pointer-events: none;
+  transition: height 0.1s ease;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='slider']:hover [part='track-hover'] {
+  height: 6px;
+}
+
+@media (hover: none), (pointer: coarse) {
+  playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='track-hover'] {
+    height: 6px;
+  }
+}
+
+/* Thumb / handle knob at the played position. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='thumb'] {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Show thumb on hover or while seeking/sliding. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='slider']:hover [part='thumb'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-seeking] [part='thumb'] {
+  opacity: 1;
+}
+
+/* Hide thumb during ads. */
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='thumb'] {
+  display: none;
+}
+
+/* Touch devices: always show thumb (no hover). */
+@media (hover: none), (pointer: coarse) {
+  playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='thumb'] {
+    opacity: 1;
+  }
+}
+
+/* Loading shimmer (StyledLoadingStripes): animated diagonal stripes over the
+   unbuffered portion while buffering. */
+playerstack-media-controller[data-skin='audio'] [part='loading-stripes'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -60deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 255, 255, 0.15) 3px,
+    rgba(255, 255, 255, 0.15) 6px
+  );
+  background-size: 200% 100%;
+  animation: playerstack-audio-loading-stripes 1.5s linear infinite;
+}
+
+@keyframes playerstack-audio-loading-stripes {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 24px 0;
+  }
+}
+
+/* Hover read-out above the timeline (StyledAudioTooltip + chapter/time lines). Anchored fully
+   ABOVE the slider (`bottom: 100%` + gap) so the two-line read-out never overlaps the rail —
+   the original sat on the tall skin card; here the slider box is short, so pin to its top edge.
+   The card has `overflow: visible`, so it escapes upward. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='tooltip'] {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 6px;
+  transform: translateX(-50%);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0;
+  background: none;
+  border: none;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='tooltip'][data-visible='true'] {
+  display: flex;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='tooltip-chapter'] {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+playerstack-media-controller[data-skin='audio'] [part='tooltip-time'] {
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Remaining-time read-out (StyledTime): 13px tabular-nums, dim white. Rendered as a
+   full-height flex box that centers the text by its OPTICAL center (align-items:center +
+   line-height:1) so the number lines up with the 36px transport/volume glyphs — a bare
+   `line-height:normal` box centers by BASELINE, which sits the digits visibly higher than the
+   icon centers. `justify-content:flex-end` keeps it right-aligned within `min-width` so the
+   layout does not jump as the digits change. */
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='time'] {
+  /* Exact port of the original `StyledTime`: 13px tabular-nums, min-width 48px, right-aligned,
+     margin-right 8px. Rendered as a full-height flex box (align-items:center + line-height:1) so
+     the digits center by their OPTICAL center against the 36px glyphs instead of by baseline. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 36px;
+  padding: 0;
+  font-size: 13px;
+  /* `line-height: normal` (not `1`): a 13px line-height is SHORTER than the digits' ink box
+     (~17px), so the glyphs overflow their line-box and flex-centering the (too-short) line-box
+     leaves the ink sitting ~2px LOW. A normal line-height contains the ink symmetrically, so
+     `align-items:center` centers the actual digits against the 36px glyphs. */
+  line-height: normal;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  min-width: 48px;
+  flex-shrink: 0;
+  margin-right: 2px;
+  /* Optical alignment: the box is geometrically centered (measured yc equals the glyphs'), but
+     the digits' compact ink mass reads ~1px LOW next to the larger 36px icon glyphs (whose ink
+     mass sits higher within their padded viewBox). A -1px nudge aligns the perceived centers. */
+  position: relative;
+  top: -1px;
+  /* Stay above the volume slider during its reveal transition so the expanding slider never
+     visually overlaps the time digits. */
+  z-index: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Volume (StyledVolumeContainer + hover-reveal 80px slider + white fill/thumb  */
+/* + % tooltip). The mute toggle is always visible; the slider reveals on hover */
+/* of the volume host (or while dragging). The `playerstack-volume` host renders */
+/* `[part='mute-button']` + `[part='volume']`; the reveal targets the inner      */
+/* `[part='volume']`.                                                            */
+/* -------------------------------------------------------------------------- */
+/* The `playerstack-volume` element renders `[part='mute-button']` FIRST then `[part='volume']`
+   (the slider). The original audio skin placed the slider to the LEFT of the mute icon and
+   revealed it growing out from the icon (StyledVolumeContainer: slider wrapper then mute icon,
+   with the slider `justify-content:flex-end`). `row-reverse` reproduces that order — mute icon
+   on the right, slider revealing to its left — without changing the element's DOM order (so the
+   base `[part='mute-button']:hover ~ [part='volume']` sibling reveal still resolves). */
+playerstack-media-controller[data-skin='audio'] > playerstack-volume {
+  position: relative;
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  /* 6px left padding extends the hover-hit zone to cover the volume thumb when it sits at 0%
+     (overflows 6px left of `[part='volume']` via overflow-clip-margin). Without this, the
+     pointer leaves the host at the thumb's left edge, `:hover` drops, and the slider collapses. */
+  padding-left: 6px;
+}
+
+/* Right-cluster buttons (volume + settings): 36px hit-box like the transport buttons, with the
+   glyph filling the box (100%). This matches the original audio skin's ~36px glyph size WITHOUT
+   overflowing a smaller box (a 36px glyph in a 28px button overlapped the neighbouring glyph by
+   ~12px). Equal 36px boxes sit flush with no glyph collision and center on the row. */
+playerstack-media-controller[data-skin='audio'] [part='mute-button'] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.8;
+  border-radius: 0;
+  transition: opacity 0.15s ease;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='mute-button']:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='mute-button'] > * {
+  pointer-events: none;
+}
+
+/* Collapsed volume slider container (StyledVolumeSliderWrapper): width 0 + overflow:hidden so
+   the 80px slider is fully clipped when idle. Uses `width` (like the base video volume, not
+   `max-width`) so it cleanly OVERRIDES the base `[part='volume'] { width: 0 → 55px }` reveal
+   for the audio skin — otherwise the two models fight and the slider never collapses. The
+   audio host width to reveal is 80px (original), taller-agnostic `height:auto`. */
+playerstack-media-controller[data-skin='audio'] [part='volume'] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  height: auto;
+  /* `clip` with a 6px margin allows the 12px thumb to breathe at slider edges (0%/100%)
+     without letting the full 80px slider content leak into the timer area during the
+     width transition. The timer's `z-index: 1` provides a secondary safety net. */
+  overflow: clip;
+  overflow-clip-margin: 6px;
+  width: 0;
+  max-width: none;
+  opacity: 0;
+  transition: width 0.25s ease, opacity 0.25s ease;
+}
+
+/* Reveal on hover of the whole volume host (icon OR slider) or while dragging
+   (StyledVolumeContainer:hover + `$dragging`). Higher specificity than the base video reveal
+   so the audio 80px width + easing win. `overflow:visible` once open so the thumb never clips. */
+playerstack-media-controller[data-skin='audio'] playerstack-volume:hover [part='volume'],
+playerstack-media-controller[data-skin='audio'] playerstack-volume[data-sliding] [part='volume'],
+playerstack-media-controller[data-skin='audio'] [part='mute-button']:hover ~ [part='volume'] {
+  width: 75px;
+  overflow: visible;
+  opacity: 1;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='volume'] [part='slider'] {
+  position: relative;
+  width: 75px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  flex: none;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='volume'] [part='track'] {
+  position: relative;
+  top: auto;
+  transform: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='volume'] [part='track-fill'] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #fff;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* `end` fill origin: anchor the fill to the RIGHT (icon side) so it grows leftward as volume
+   rises and shrinks toward the icon as it falls. The element reflects `data-fill-origin="end"`
+   on its host; only the WIDTH is set inline. */
+playerstack-media-controller[data-skin='audio'] playerstack-volume[data-fill-origin='end'] [part='track-fill'] {
+  left: auto;
+  right: 0;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='volume'] [part='thumb'] {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
+}
+
+playerstack-media-controller[data-skin='audio'] [part='volume-tooltip'] {
+  position: absolute;
+  bottom: 100%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  background: rgba(15, 15, 15, 0.9);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  display: none;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='volume-tooltip'][data-visible='true'] {
+  display: block;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Audio skin — mobile/touch adaptations.                                      */
+/* On mobile viewports (<= 575px) and touch-primary devices the volume slider  */
+/* is hidden entirely (iOS/Android control volume via hardware buttons), and    */
+/* the seek timeline track stays at its expanded height (no hover to thicken).  */
+/* -------------------------------------------------------------------------- */
+
+/* Hide the volume slider on mobile — override the audio-specific `display: flex` rule which
+   has higher specificity than the base generic `[part='volume'] { display: none }` @media. */
+@media (max-width: 575px) {
+  playerstack-media-controller[data-skin='audio'] [part='volume'] {
+    display: none !important;
+  }
+  /* Remove the left padding on the volume host since the slider won't expand. */
+  playerstack-media-controller[data-skin='audio'] > playerstack-volume {
+    padding-left: 0;
+  }
+}
+
+/* Touch devices: keep the seek timeline at its expanded 6px height (no hover available to
+   thicken it from 4px). Also keep the chapter segment hover-grow disabled. */
+@media (hover: none), (pointer: coarse) {
+  playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='slider'] [part='track'] {
+    height: 6px;
+  }
+  /* Hover-grow on segments should not fire on touch (no hover state). */
+  playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='slider']:hover [part='track'] {
+    height: 6px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Settings (AudioSettingsMenu): 36px gear (rotates 45deg on open) + a          */
+/* bottom-right anchored panel of playback-speed rows with a red-accented       */
+/* active row. The speed submenu is `[part='submenu']` inside the settings host.*/
+/* -------------------------------------------------------------------------- */
+playerstack-media-controller[data-skin='audio'] [part='settings-button'] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.8;
+  border-radius: 0;
+  transition: opacity 0.15s ease;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='settings-button']:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='settings-button'] .icon,
+playerstack-media-controller[data-skin='audio'] [part='settings-button'] svg {
+  transition: transform 0.2s ease-in-out;
+  transform: rotate(0);
+}
+
+playerstack-media-controller[data-skin='audio'] playerstack-settings[data-open] [part='settings-button'] .icon,
+playerstack-media-controller[data-skin='audio'] playerstack-settings[data-open] [part='settings-button'] svg {
+  transform: rotate(45deg);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Settings menu (AudioSettingsMenu): a gear that opens a two-level dropdown —  */
+/* a main menu (Speed row) and a Speed submenu with a sticky back header and a  */
+/* red-accented selected row. Exact port of the original StyledMenuOverlay /    */
+/* StyledSubMenuOverlay: dark translucent panels (rgba(20,20,20,.97)), 250px     */
+/* wide, NO border/radius, anchored bottom:55 right:0. The Core element exposes  */
+/* the same two panels + submenu-header/back and marks the active row with       */
+/* `data-active`. Override the generic (video) settings menu rules below.        */
+/* -------------------------------------------------------------------------- */
+
+/* Both panels: dark translucent, 250px, no border/radius (StyledMenuOverlay /
+   StyledSubMenuOverlay). Hidden by default; the open/submenu state reveals them. */
+playerstack-media-controller[data-skin='audio'] [part='menu'],
+playerstack-media-controller[data-skin='audio'] [part='submenu'] {
+  position: absolute;
+  right: 0;
+  bottom: 55px;
+  min-width: 250px;
+  width: 250px;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: rgba(20, 20, 20, 0.97);
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+  color: #eee;
+  line-height: 1.4;
+  font-family: var(
+    --playerstack-font-family-base,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif
+  );
+  z-index: 99999;
+  display: none;
+}
+
+/* Main menu shows only while open AND no submenu is open (StyledMenuOverlay
+   `$visible={menuOpen && !subMenuOpen}`). */
+playerstack-media-controller[data-skin='audio'] playerstack-settings[data-open] [part='menu'] {
+  display: block;
+}
+
+playerstack-media-controller[data-skin='audio'] playerstack-settings[data-open][data-submenu] [part='menu'] {
+  display: none;
+}
+
+/* Speed submenu: shows while a submenu category is open; scrolls past 250px. */
+playerstack-media-controller[data-skin='audio'] playerstack-settings[data-open][data-submenu] [part='submenu'] {
+  display: block;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu']::-webkit-scrollbar {
+  width: 8px;
+  background-color: #4c4c4c;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu']::-webkit-scrollbar-thumb {
+  background-color: #909090;
+  border-radius: 10px;
+}
+
+/* Main-menu list padding (StyledMenuList `padding: 10px 0`). */
+playerstack-media-controller[data-skin='audio'] [part='menu'] {
+  padding: 10px 0;
+}
+
+/* Main-menu row (StyledMenuItem > button): 48px tall, generous side padding, label pushed left
+   and the current value + right chevron on the right. */
+playerstack-media-controller[data-skin='audio'] [part='menu-item'] {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 48px;
+  padding: 0 24px;
+  background: transparent;
+  color: #eee;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: normal;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='menu-item']:hover,
+playerstack-media-controller[data-skin='audio'] [part='menu-item']:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+playerstack-media-controller[data-skin='audio'] [part='menu-item-title'] {
+  margin-right: auto;
+}
+
+/* Current value + chevron (StyledMenuItemValue): slightly smaller, white, small gap. */
+playerstack-media-controller[data-skin='audio'] [part='menu-item-value'] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 87%;
+  color: #fff;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='menu-item-arrow'] {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+}
+
+/* Submenu back header (StyledSubMenuHeader): sticky, bottom hairline, semibold, dim back arrow. */
+playerstack-media-controller[data-skin='audio'] [part='submenu-header'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  position: sticky;
+  top: 0;
+  background: rgba(20, 20, 20, 0.97);
+  z-index: 1;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu-header']:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu-back'] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* Reset the base video `submenu-back` (height:57px; padding:20px 5px; width:100%) which was
+     doubling the header height (~78px). The header owns the padding (10 16); the back is a plain
+     inline text+arrow run, so it must be auto-sized. */
+  width: auto;
+  height: auto;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu-back'] .icon,
+playerstack-media-controller[data-skin='audio'] [part='submenu-back'] svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+/* Submenu content slide-in (StyledSubMenuContent): fades + slides from the right when revealed.
+   The Core element flips `data-show` on the submenu ~a frame after it opens. */
+playerstack-media-controller[data-skin='audio'] [part='submenu-content'] {
+  opacity: 0;
+  transform: translateX(50px);
+  transition: opacity 0.15s linear, transform 0.15s ease-out;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu'][data-show] [part='submenu-content'] {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Submenu option list padding (StyledSubMenuList `padding: 8px 0`). */
+playerstack-media-controller[data-skin='audio'] [part='submenu-content'] {
+  padding: 8px 0;
+}
+
+/* Submenu option row (StyledSubMenuItem > button): 32px, rounded, side gutters; the selected
+   row uses the red accent (rgba(204,54,43,*)). */
+playerstack-media-controller[data-skin='audio'] [part='submenu-item'] {
+  display: flex;
+  align-items: center;
+  width: calc(100% - 20px);
+  height: 32px;
+  /* Vertical gutter (2px each side) so adjacent rounded highlights (hover grey / red selected)
+     don't touch — the rows read as separated pills like the original. Horizontal 10px = the
+     original SubMenuItem `padding: 0 10px` gutter. */
+  margin: 5px 10px;
+  padding: 0 12px;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: normal;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu-item']:hover,
+playerstack-media-controller[data-skin='audio'] [part='submenu-item']:focus {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu-item'][data-active] {
+  background: rgba(204, 54, 43, 0.4);
+}
+
+playerstack-media-controller[data-skin='audio'] [part='submenu-item'][data-active]:hover,
+playerstack-media-controller[data-skin='audio'] [part='submenu-item'][data-active]:focus {
+  background: rgba(204, 54, 43, 0.5);
+}

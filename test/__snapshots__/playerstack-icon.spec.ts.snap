@@ -1,0 +1,3 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`playerstack-icon Markup_Contract (Req 5.1, 5.3) matches the rendered shadow markup snapshot 1`] = `"<span part="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24"><path d="M0 0h24v24H0z"></path></svg></span>"`;

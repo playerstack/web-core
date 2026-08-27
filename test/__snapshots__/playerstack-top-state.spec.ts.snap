@@ -1,0 +1,3 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`playerstack-top-state Markup_Contract (Req 5.1, 5.2, 5.3) matches the rendered shadow markup snapshot 1`] = `"<div part="top-state"><div part="top-state-message">Playback is stuck, click to resume playback.</div></div>"`;

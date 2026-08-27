@@ -1,0 +1,3 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`playerstack-play-time Markup_Contract (Req 5.1, 5.2, 5.3) matches the rendered shadow markup snapshot 1`] = `"<div part="time"><span part="current-time">00:00</span><span aria-hidden="true" style="display: none;"> / </span><span part="duration" style="display: none;">00:00</span></div>"`;

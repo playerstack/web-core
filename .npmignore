@@ -1,0 +1,10 @@
+src/
+test/
+coverage/
+.github/
+.eslintrc.json
+.prettierrc.js
+tsconfig.json
+jest.config.js
+.gitignore
+.kiro/

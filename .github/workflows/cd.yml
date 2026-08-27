@@ -1,0 +1,95 @@
+name: CD
+
+concurrency: production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: choice
+        required: true
+        description: Version bump type
+        options:
+          - conventional
+          - patch
+          - minor
+          - major
+          - prepatch
+          - preminor
+          - premajor
+          - prerelease
+          - from-package
+          - from-git
+      prerelease:
+        type: choice
+        description: Pre-release tag
+        options:
+          - none
+          - alpha
+          - canary
+          - beta
+      coverage:
+        description: 'Upload coverage'
+        type: boolean
+        default: true
+      dryrun:
+        description: 'Dry-run (no publish)'
+        type: boolean
+
+run-name: Deploy ${{ inputs.version }} ${{ inputs.dryrun && '--dry-run' || '' }} ${{ inputs.prerelease != 'none' && format('--prerelease {0}', inputs.prerelease) || '' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+      id-token: write
+
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      CONVENTIONAL_GITHUB_RELEASER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test with coverage
+        run: npm run test:cov
+
+      - name: Upload coverage to Codecov
+        if: ${{ inputs.coverage == true }}
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./coverage
+          files: ./coverage/lcov.info
+          flags: unittests
+          fail_ci_if_error: true
+
+      - name: Build
+        run: npm run build
+
+      - uses: fregante/setup-git-user@v1
+
+      - name: Publish
+        run: npx --yes wet-run@1.0.1 release ${{ inputs.version }} ${{ inputs.dryrun && '--dry-run' || '' }} ${{ inputs.prerelease != 'none' && format('--prerelease {0}', inputs.prerelease) || '' }} --provenance --github-release --verbose
+
+      - name: Get version
+        id: npm-version
+        uses: martinbeentjes/npm-get-version-action@v1.3.1
+
+      - name: Released ${{ steps.npm-version.outputs.current-version }} ✨
+        run: echo ${{ steps.npm-version.outputs.current-version }}

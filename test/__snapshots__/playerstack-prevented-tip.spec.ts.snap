@@ -1,0 +1,3 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`playerstack-prevented-tip Markup_Contract (Req 5.1, 5.3) matches the rendered markup snapshot 1`] = `"<div part="prevented-tip-clicked" style="display: none;"></div><div part="prevented-tip"><span part="prevented-tip-icon" class="icon"></span><div part="prevented-tip-message"></div></div>"`;

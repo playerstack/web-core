@@ -1,0 +1,12 @@
+comment: false
+coverage:
+  parsers:
+    javascript:
+      enable_partials: yes
+  status:
+    project:
+      default:
+        target: 90%
+    patch:
+      default:
+        target: 90%

@@ -1,0 +1,12 @@
+export { mobilePlayIcon } from '@icons/mobile/mobilePlayIcon';
+export { mobilePauseIcon } from '@icons/mobile/mobilePauseIcon';
+export { mobilePrevIcon } from '@icons/mobile/mobilePrevIcon';
+export { mobileNextIcon } from '@icons/mobile/mobileNextIcon';
+export { mobileFullscreenIcon } from '@icons/mobile/mobileFullscreenIcon';
+export { mobileExitFullscreenIcon } from '@icons/mobile/mobileExitFullscreenIcon';
+export { mobileSettingsGearIcon } from '@icons/mobile/mobileSettingsGearIcon';
+export { mobileSpeedIcon } from '@icons/mobile/mobileSpeedIcon';
+export { mobileCloseIcon } from '@icons/mobile/mobileCloseIcon';
+export { mobileBackIcon } from '@icons/mobile/mobileBackIcon';
+export { mobileSkipChevronIcon } from '@icons/mobile/mobileSkipChevronIcon';
+export { mobileCaptionsIcon } from '@icons/mobile/mobileCaptionsIcon';
