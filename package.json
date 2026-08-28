@@ -278,6 +278,7 @@
     "framework-agnostic"
   ],
   "sideEffects": [
+    "./dist/esm/chunk-*.js",
     "./dist/esm/constants.js",
     "./dist/cjs/constants.js",
     "./dist/esm/utils/device.js",
