@@ -263,4 +263,128 @@ export const UI_ELEMENT_BINDINGS: readonly UiElementBinding[] = [
     attributes: ['language'],
     requestEvents: [],
   },
+  // Media title read-out: `title` sets the displayed text; display-only, no request events.
+  {
+    tagName: 'playerstack-title',
+    attributes: ['title'],
+    requestEvents: [],
+  },
 ];
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Composable-player-components catalog (framework-agnostic, React-free — A1).
+ *
+ * WHY it lives here: this is the single source of truth for the composable public
+ * surface every skin (reactjs, vue, solid, angular) inherits — exactly like
+ * `UI_ELEMENT_BINDINGS` above (A6). Keeping the part catalog and its canonical order
+ * as pure data + pure functions here stops each skin from duplicating them (A7). No
+ * React, no DOM, no `document`/`navigator`/`window`, no timers (A1, Req 3.2/11.1/11.2).
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/** Layout region a composable slot lives in (agnostic ordering contract). */
+export type SlotRegion =
+  | 'container' // the Player root
+  | 'stage-overlay' // overlays above the video (poster, play-state, captions, …)
+  | 'control-bar' // the control bar itself
+  | 'control-bar-left' // left cluster of the control bar (within BottomBar)
+  | 'control-bar-right' // right cluster of the control bar (within BottomBar)
+  | 'timeline'; // the progress bar
+
+/** Agnostic descriptor of one public composable part. */
+export interface ComposableSlot {
+  /** Public composable name (e.g. 'PlayButton', 'Volume', 'BottomBar'). */
+  readonly name: string;
+  /**
+   * `playerstack-*` tag backing the part, or `null` when the part is a container
+   * (`Player`/`BottomBar`/`TopBar`/`SidebarLeft`/`SidebarRight`), an engine-only input
+   * (`Source`), or a skin-owned `<button>`/overlay not yet promoted to a Custom Element
+   * (`Poster`, `CaptionsToggle`, `Cast`). Every non-null tag MUST already exist in
+   * `UI_ELEMENT_BINDINGS` above (Req 3.4).
+   */
+  readonly element: string | null;
+  /** Layout region. */
+  readonly region: SlotRegion;
+  /** Canonical order index across the catalog (smaller = earlier); unique per region. */
+  readonly order: number;
+  /** Whether the part groups other slots — containers: `Player`, `BottomBar`, `TopBar`, `SidebarLeft`, `SidebarRight` (Req 3.7). */
+  readonly container?: boolean;
+  /** Whether the part belongs to the default composition (see `DEFAULT_COMPOSITION`). */
+  readonly inDefault: boolean;
+}
+
+/**
+ * Agnostic catalog of composable parts. Every skin derives its public surface and its
+ * canonical DOM order from this table (A7). Each non-null `element` references a tag that
+ * already exists in `UI_ELEMENT_BINDINGS` (Req 3.4); `container: true` is set on root
+ * (`Player`) and on the four positionable control containers (`BottomBar`, `TopBar`,
+ * `SidebarLeft`, `SidebarRight`) (Req 3.7); `order` is unique within each region.
+ */
+export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
+  {
+    name: 'Player',
+    element: 'playerstack-media-controller',
+    region: 'container',
+    order: 0,
+    container: true,
+    inDefault: true,
+  },
+  // `Source` only feeds the media engine (sources/fullHDQualityBreak) — it renders no UI (element: null).
+  { name: 'Source', element: null, region: 'container', order: 5, inDefault: false },
+  { name: 'PlayOverlay', element: 'playerstack-play-state', region: 'stage-overlay', order: 10, inDefault: true },
+  // `Poster` is a skin-owned `.playerstack-poster` div, not a Custom Element (element: null).
+  { name: 'Poster', element: null, region: 'stage-overlay', order: 20, inDefault: true },
+  { name: 'Captions', element: 'playerstack-captions', region: 'stage-overlay', order: 30, inDefault: true },
+  // Positionable control containers. `BottomBar` replaces the former `ControlBar` and is the
+  // default bottom bar; `TopBar`, `SidebarLeft`, `SidebarRight` are opt-in containers for
+  // placing controls at other edges of the player.
+  { name: 'TopBar', element: null, region: 'control-bar', order: 35, container: true, inDefault: false },
+  { name: 'SidebarLeft', element: null, region: 'control-bar', order: 36, container: true, inDefault: false },
+  { name: 'SidebarRight', element: null, region: 'control-bar', order: 37, container: true, inDefault: false },
+  { name: 'BottomBar', element: null, region: 'control-bar', order: 40, container: true, inDefault: true },
+  { name: 'PrevButton', element: null, region: 'control-bar-left', order: 50, inDefault: false },
+  { name: 'NextButton', element: null, region: 'control-bar-left', order: 65, inDefault: false },
+  { name: 'PlayButton', element: 'playerstack-play-button', region: 'control-bar-left', order: 60, inDefault: true },
+  { name: 'Volume', element: 'playerstack-volume', region: 'control-bar-left', order: 70, inDefault: true },
+  { name: 'PlayTime', element: 'playerstack-play-time', region: 'control-bar-left', order: 80, inDefault: true },
+  // `Title` maps to `playerstack-title`, the Custom Element added in task 9.1 (A2). Its binding
+  // now exists in `UI_ELEMENT_BINDINGS` above, so `element` is the bound tag (Req 3.4: a non-null
+  // tag MUST already be bound). It stays out of the default composition (`inDefault: false`).
+  { name: 'Title', element: 'playerstack-title', region: 'control-bar-left', order: 90, inDefault: false },
+  { name: 'Timeline', element: 'playerstack-time-slider', region: 'timeline', order: 100, inDefault: true },
+  // `CaptionsToggle` is a skin-owned `<button>` (A2 promotion candidate: playerstack-captions-toggle).
+  { name: 'CaptionsToggle', element: null, region: 'control-bar-right', order: 110, inDefault: true },
+  { name: 'Settings', element: 'playerstack-settings', region: 'control-bar-right', order: 120, inDefault: true },
+  // `Cast` is a skin-owned `<button>` (A2 promotion candidate: playerstack-cast-button).
+  { name: 'Cast', element: null, region: 'control-bar-right', order: 130, inDefault: true },
+  {
+    name: 'Fullscreen',
+    element: 'playerstack-fullscreen-button',
+    region: 'control-bar-right',
+    order: 140,
+    inDefault: true,
+  },
+];
+
+/**
+ * Default composition: the parts rendered when `<Player>` receives no children — a DX
+ * convenience of the composed API (a bare `<Player url=… />` shows a sensible control set),
+ * NOT a compatibility layer. Derived from the `inDefault` flag so the catalog stays the single
+ * source of truth; part names are unique, so the result has no duplicates (Req 3.5).
+ */
+export const DEFAULT_COMPOSITION: readonly string[] = COMPOSABLE_SLOTS.filter((slot) => slot.inDefault).map(
+  (slot) => slot.name,
+);
+
+/**
+ * Sorts a collection of part names by their canonical `order`, ascending (Req 3.6). Pure:
+ * returns a NEW array (never mutates the input) and is independent of the input order. Names
+ * absent from `COMPOSABLE_SLOTS` are excluded from the result (Req 3.8).
+ */
+export function resolveSlotOrder(names: readonly string[]): string[] {
+  const orderByName = new Map(COMPOSABLE_SLOTS.map((slot) => [slot.name, slot.order] as const));
+  return names
+    .filter((name) => orderByName.has(name))
+    .sort((a, b) => (orderByName.get(a) ?? 0) - (orderByName.get(b) ?? 0));
+}

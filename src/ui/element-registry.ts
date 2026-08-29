@@ -37,6 +37,7 @@ import { PlayerstackNavButtons } from '@ui/elements/playerstack-nav-buttons';
 import { PlayerstackMobileSettings } from '@ui/elements/playerstack-mobile-settings';
 import { PlayerstackSpritePreview } from '@ui/elements/playerstack-sprite-preview';
 import { PlayerstackLiveAd } from '@ui/elements/playerstack-live-ad';
+import { PlayerstackTitle } from '@ui/elements/playerstack-title';
 
 export const PLAYERSTACK_ELEMENTS: readonly PlayerstackElementDefinition[] = [
   // Root host element (task 8.1); other UI_Element tasks (8.x / 9.x) append their own
@@ -66,4 +67,6 @@ export const PLAYERSTACK_ELEMENTS: readonly PlayerstackElementDefinition[] = [
   { name: 'playerstack-mobile-settings', ctor: PlayerstackMobileSettings },
   { name: 'playerstack-sprite-preview', ctor: PlayerstackSpritePreview },
   { name: 'playerstack-live-ad', ctor: PlayerstackLiveAd },
+  // `playerstack-title` — media-title read-out (composable-player-components task 9.1, A2).
+  { name: 'playerstack-title', ctor: PlayerstackTitle },
 ];

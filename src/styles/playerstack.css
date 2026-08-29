@@ -537,6 +537,7 @@ playerstack-media-controller[data-hiding]::after {
 .playerstack-controls playerstack-play-button,
 .playerstack-controls playerstack-volume,
 .playerstack-controls playerstack-play-time,
+.playerstack-controls playerstack-title,
 .playerstack-controls playerstack-settings,
 .playerstack-controls playerstack-fullscreen-button,
 .playerstack-controls playerstack-pip-button,
@@ -647,6 +648,122 @@ playerstack-media-controller[data-fullscreen] .playerstack-controls {
 playerstack-media-controller[data-hiding] .playerstack-controls {
   opacity: 0;
   pointer-events: none;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Additional positionable control containers (TopBar, SidebarLeft, SidebarRight). */
+/* BottomBar reuses the existing `.playerstack-controls` rules above.              */
+/* -------------------------------------------------------------------------- */
+
+/* TopBar — horizontal bar at the top of the player. Same flex-row layout as the bottom bar
+   but positioned at the top. Auto-hides with the rest of the controls. */
+.playerstack-top-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 36px;
+  z-index: 11;
+  background: transparent;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+playerstack-media-controller[data-hiding] .playerstack-top-bar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+playerstack-media-controller[data-fullscreen] .playerstack-top-bar {
+  height: 54px;
+}
+
+/* SidebarLeft — vertical bar on the left edge of the player. */
+.playerstack-sidebar-left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 44px;
+  z-index: 11;
+  background: transparent;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+playerstack-media-controller[data-hiding] .playerstack-sidebar-left {
+  opacity: 0;
+  pointer-events: none;
+}
+
+playerstack-media-controller[data-fullscreen] .playerstack-sidebar-left {
+  width: 58px;
+}
+
+/* SidebarRight — vertical bar on the right edge of the player. */
+.playerstack-sidebar-right {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 44px;
+  z-index: 11;
+  background: transparent;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+playerstack-media-controller[data-hiding] .playerstack-sidebar-right {
+  opacity: 0;
+  pointer-events: none;
+}
+
+playerstack-media-controller[data-fullscreen] .playerstack-sidebar-right {
+  width: 58px;
+}
+
+/* Hide additional containers in mobile mode (mobile has its own layout). */
+playerstack-media-controller[data-skin-mode='mobile'] .playerstack-top-bar,
+playerstack-media-controller[data-skin-mode='mobile'] .playerstack-sidebar-left,
+playerstack-media-controller[data-skin-mode='mobile'] .playerstack-sidebar-right {
+  display: none;
+}
+
+/* Inline-flex layout for elements placed inside TopBar/Sidebars — same as the bottom bar. */
+.playerstack-top-bar playerstack-play-button,
+.playerstack-top-bar playerstack-volume,
+.playerstack-top-bar playerstack-play-time,
+.playerstack-top-bar playerstack-title,
+.playerstack-top-bar playerstack-settings,
+.playerstack-top-bar playerstack-fullscreen-button,
+.playerstack-top-bar playerstack-pip-button,
+.playerstack-top-bar playerstack-live-indicator,
+.playerstack-top-bar playerstack-nav-buttons,
+.playerstack-sidebar-left playerstack-play-button,
+.playerstack-sidebar-left playerstack-volume,
+.playerstack-sidebar-left playerstack-settings,
+.playerstack-sidebar-left playerstack-fullscreen-button,
+.playerstack-sidebar-left playerstack-pip-button,
+.playerstack-sidebar-right playerstack-play-button,
+.playerstack-sidebar-right playerstack-volume,
+.playerstack-sidebar-right playerstack-settings,
+.playerstack-sidebar-right playerstack-fullscreen-button,
+.playerstack-sidebar-right playerstack-pip-button {
+  display: inline-flex;
 }
 
 /* Controls backdrop gradient (StyledControlsBackdrop) — a bottom vignette so */
@@ -761,6 +878,23 @@ playerstack-media-controller[data-fullscreen] [part='settings-button'] {
 [part='current-time'],
 [part='duration'] {
   font-size: 13px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Title (media-title read-out shown inline in the control bar).             */
+/* -------------------------------------------------------------------------- */
+/* Scoped to the element so the generic `title` part name never bleeds onto   */
+/* other elements. Truncates with an ellipsis so a long title never pushes    */
+/* the rest of the bar off-screen.                                            */
+playerstack-title [part='title'] {
+  padding: 0 8px;
+  font-size: 13px;
+  line-height: 35px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  color: #fff;
 }
 
 /* Live badge/dot (StyledLiveBadge / StyledLiveDot). The `$atEdge` interpolation */
@@ -2687,6 +2821,59 @@ playerstack-media-controller[data-fullscreen] [part='cast-button'] [part='icon']
 playerstack-media-controller[data-fullscreen] [part='cast-button'] svg {
   width: 28px;
   height: 28px;
+}
+
+/* Prev/next navigation buttons — individual buttons in the control bar left cluster.
+   Sized to the standard 36px control button (54px fullscreen), matching play/volume/settings. */
+[part='prev-button'],
+[part='next-button'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.8;
+  border-radius: var(--playerstack-radius-md, 8px);
+  transition: opacity 0.15s ease;
+  flex: 0 0 auto;
+}
+
+[part='prev-button']:hover,
+[part='next-button']:hover,
+[part='prev-button']:focus,
+[part='next-button']:focus {
+  opacity: 1;
+}
+
+[part='prev-button'] [part='icon'],
+[part='next-button'] [part='icon'],
+[part='prev-button'] playerstack-icon,
+[part='next-button'] playerstack-icon,
+[part='prev-button'] svg,
+[part='next-button'] svg {
+  width: 36px;
+  height: 36px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='prev-button'],
+playerstack-media-controller[data-fullscreen] [part='next-button'] {
+  width: 54px;
+  height: 54px;
+}
+
+playerstack-media-controller[data-fullscreen] [part='prev-button'] [part='icon'],
+playerstack-media-controller[data-fullscreen] [part='next-button'] [part='icon'],
+playerstack-media-controller[data-fullscreen] [part='prev-button'] playerstack-icon,
+playerstack-media-controller[data-fullscreen] [part='next-button'] playerstack-icon,
+playerstack-media-controller[data-fullscreen] [part='prev-button'] svg,
+playerstack-media-controller[data-fullscreen] [part='next-button'] svg {
+  width: 54px;
+  height: 54px;
 }
 
 /* -------------------------------------------------------------------------- */

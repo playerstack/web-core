@@ -49,6 +49,7 @@ export { PlayerstackLiveIndicator } from '@ui/elements/playerstack-live-indicato
 export { PlayerstackDoubleTap } from '@ui/elements/playerstack-double-tap';
 export { PlayerstackIcon } from '@ui/elements/playerstack-icon';
 export { PlayerstackNavButtons } from '@ui/elements/playerstack-nav-buttons';
+export { PlayerstackTitle } from '@ui/elements/playerstack-title';
 
 // Public types.
 export type { MediaStore, MediaStoreState, MediaStoreListener } from '@typings/ui/media-store.types';
