@@ -5449,7 +5449,7 @@ playerstack-media-controller[data-skin='audio'] [part='menu'] {
 playerstack-media-controller[data-skin='audio'] [part='menu-item'] {
   display: flex;
   align-items: center;
-  width: 100%;
+  width: calc(100% - 20px);
   height: 48px;
   padding: 0 24px;
   background: transparent;
