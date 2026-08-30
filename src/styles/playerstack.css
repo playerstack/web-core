@@ -543,25 +543,33 @@ playerstack-media-controller[data-ad-active][data-hiding] playerstack-time-slide
   transition: opacity 0.3s;
 }
 
-/* StyledLeftItem / StyledRightItem: both are `flex:1` flex rows (so together they fill the
-   bar), left hugs the start with a 15px left margin, right hugs the end with a 15px right
-   margin. `white-space:nowrap` matches the original commonsStyles. */
+/* StyledLeftItem / StyledRightItem: flex rows. The RIGHT cluster is sized to its CONTENT only
+   (`flex: 0 0 auto`, hugging the right edge), and the LEFT cluster takes ALL the remaining space
+   up to where the right cluster begins (`flex: 1`). This makes the divide between them DYNAMIC —
+   it sits where the right cluster's content actually starts, not at a fixed 50% midpoint. So an
+   `overflow: hidden` on `.playerstack-controls-left` clips exactly at the right cluster's edge
+   (using the full width the right cluster does not need), instead of always clipping at the bar's
+   middle. `min-width: 0` lets the left cluster shrink/clip below its content width. */
 .playerstack-controls-left,
 .playerstack-controls-right {
   display: flex;
   flex-direction: row;
   align-items: center;
   white-space: nowrap;
-  flex: 1;
-  min-width: 0;
+  overflow: hidden;
 }
 
 .playerstack-controls-left {
+  flex: 1 1 auto;
+  min-width: 0;
   justify-content: flex-start;
   margin-left: 15px;
 }
 
 .playerstack-controls-right {
+  /* Content-sized + pinned to the right edge, so it never claims the empty half of the bar. The
+     left cluster grows into whatever space this one leaves. */
+  flex: 0 0 auto;
   justify-content: flex-end;
   margin-right: 15px;
 }
