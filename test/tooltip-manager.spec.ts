@@ -71,6 +71,44 @@ describe('TooltipManager', () => {
     expect(label(host)?.getAttribute('data-visible')).toBe('false');
   });
 
+  it('places the tooltip ABOVE a normal control button (data-placement="top")', () => {
+    const { host, button } = mount();
+    hover(button);
+
+    const tip = label(host);
+    expect(tip?.getAttribute('data-placement')).toBe('top');
+    // Anchored by `bottom` (above the button), not `top`.
+    expect(tip?.style.bottom).not.toBe('');
+    expect(tip?.style.top).toBe('');
+  });
+
+  it('places the tooltip to the RIGHT of a vertical-volume mute button (data-placement="right")', () => {
+    const host = document.createElement('playerstack-media-controller') as PlayerstackMediaController;
+    document.body.appendChild(host);
+    const bar = document.createElement('div');
+    bar.className = 'playerstack-controls';
+    // A REAL vertical volume element: setting `orientation="vertical"` makes it reflect
+    // `data-orientation="vertical"` on itself and render its own `[part='mute-button']`.
+    const vol = document.createElement('playerstack-volume');
+    vol.setAttribute('orientation', 'vertical');
+    bar.appendChild(vol);
+    host.appendChild(bar);
+
+    const muteButton = vol.querySelector('[part="mute-button"]') as HTMLElement;
+    expect(muteButton).not.toBeNull();
+    expect(vol.getAttribute('data-orientation')).toBe('vertical');
+
+    hover(muteButton);
+
+    const tip = host.querySelector('[part="tooltip-label"]');
+    expect(tip?.getAttribute('data-visible')).toBe('true');
+    // Right-of-the-button placement: anchored by `top` (vertical center) + `left`, not `bottom`.
+    expect(tip?.getAttribute('data-placement')).toBe('right');
+    expect(tip?.style.top).not.toBe('');
+    expect(tip?.style.left).not.toBe('');
+    expect(tip?.style.bottom).toBe('');
+  });
+
   it('does not hide when the pointer moves onto a child of the same button', () => {
     const { host, button } = mount();
     const child = document.createElement('span');

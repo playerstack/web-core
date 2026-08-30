@@ -280,8 +280,23 @@ describe('playerstack-volume', () => {
 
       expect(trackFill.style.height).toBe('75%');
       expect(trackFill.style.width).toBe('');
-      expect(thumb.style.bottom).toBe('75%');
+      // Thumb `bottom` is the radius-inset calc (clamped so the handle never overflows the ends):
+      // radius + pct% - 2·radius·fraction → at 75% => calc(75% - 3.5px).
+      expect(thumb.style.bottom).toBe('calc(75% - 3.5px)');
       expect(thumb.style.left).toBe('');
+    });
+
+    it('clamps the thumb inside the track at both extremes (0% and 100%)', () => {
+      const { host, el } = mountVertical();
+      const thumb = el.querySelector('[part="thumb"]') as HTMLElement;
+
+      host.store.set({ volume: 0, isMuted: false });
+      // 0% → radius offset keeps the handle centre 7px ABOVE the silence end: calc(0% + 7px).
+      expect(thumb.style.bottom).toBe('calc(0% + 7px)');
+
+      host.store.set({ volume: 1, isMuted: false });
+      // 100% → centre 7px BELOW the full end: calc(100% - 7px).
+      expect(thumb.style.bottom).toBe('calc(100% - 7px)');
     });
 
     it('shows the percentage tooltip anchored on the Y axis while dragging', () => {
@@ -296,8 +311,9 @@ describe('playerstack-volume', () => {
       slider.dispatchEvent(new MouseEvent('pointerdown', { clientY: 50, bubbles: true }));
 
       // Visible + anchored on the Y axis (bottom, matching the store volume) — never on `left`.
+      // At 50% the radius offset is 0, so the inset calc collapses to `calc(50% - 0px)`.
       expect(tooltip.getAttribute('data-visible')).toBe('true');
-      expect(tooltip.style.bottom).toBe('50%');
+      expect(tooltip.style.bottom).toBe('calc(50% - 0px)');
       expect(tooltip.style.left).toBe('');
     });
   });

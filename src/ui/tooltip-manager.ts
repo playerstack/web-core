@@ -186,9 +186,33 @@ export class TooltipManager {
     const hostRect = this.host.getBoundingClientRect();
     const buttonRect = button.getBoundingClientRect();
     const centerX = buttonRect.left - hostRect.left + buttonRect.width / 2;
-    const bottom = hostRect.bottom - buttonRect.top; // distance from host bottom to button top
     label.style.left = `${centerX}px`;
-    label.style.bottom = `${bottom}px`;
+
+    // A vertical volume slider opens its column UPWARD, directly above the mute button, so the
+    // default above-the-button tooltip would sit ON TOP of that column and obscure it. When the
+    // hovered button belongs to a `playerstack-volume[data-orientation='vertical']`, place the
+    // tooltip to the RIGHT of the button instead (vertically centered on it), flagged via
+    // `data-placement="right"` — this clears the upward-opening column AND stays inside the player
+    // (a below-the-button tooltip would fall off the bottom edge in the bottom bar). Otherwise
+    // keep the original above-button anchor.
+    const isVerticalVolumeButton = button.closest("playerstack-volume[data-orientation='vertical']") !== null;
+    if (isVerticalVolumeButton) {
+      label.setAttribute('data-placement', 'right');
+      label.style.removeProperty('bottom');
+      // Anchor at the button's right edge, vertically centered on the button. The Style_Layer
+      // offsets it right (margin-left) and re-centers vertically (translateY(-50%)); the default
+      // horizontal `translateX(-50%)` is overridden there so it does not pull the label back over
+      // the button.
+      const left = buttonRect.right - hostRect.left;
+      const top = buttonRect.top - hostRect.top + buttonRect.height / 2;
+      label.style.left = `${left}px`;
+      label.style.top = `${top}px`;
+    } else {
+      label.setAttribute('data-placement', 'top');
+      label.style.removeProperty('top');
+      const bottom = hostRect.bottom - buttonRect.top; // distance from host bottom to button top
+      label.style.bottom = `${bottom}px`;
+    }
 
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);

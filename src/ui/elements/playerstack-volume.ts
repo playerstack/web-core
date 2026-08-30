@@ -30,6 +30,26 @@ import { unmutedIcon, mutedIcon } from '@icons/index';
 /** Default accessible name used when no `aria-label` attribute is provided (Req 1.5). */
 const DEFAULT_LABEL: VolumeDefaultLabel = 'Mute';
 
+/** Half the 14px vertical thumb — the inset (px) kept at each end so the handle never overflows. */
+const VERTICAL_THUMB_RADIUS = 7;
+
+/**
+ * Maps a 0..100 percentage to a vertical `bottom` value whose travel range is INSET by the thumb
+ * radius at both ends, so the handle (and the read-out that tracks it) stays fully within the
+ * track at 0% (silence) and 100% (full) instead of sticking out past either end. Returns a CSS
+ * `calc()` expression: `radius + (100% - 2·radius) * pct/100`.
+ */
+function verticalInset(percent: number): string {
+  const clamped = Math.max(0, Math.min(100, percent));
+  const fraction = clamped / 100;
+  // radius + pct% - (2·radius)·fraction  ==  a flat `calc(<pct>% - <offset>px)` with no nested
+  // parentheses (kept simple so strict CSS parsers accept it). At 0% → `calc(0% + 7px)`; at 100%
+  // → `calc(100% - 7px)`; the handle centre therefore rides between the two inset ends.
+  const offset = VERTICAL_THUMB_RADIUS * 2 * fraction - VERTICAL_THUMB_RADIUS;
+  const sign = offset >= 0 ? '-' : '+';
+  return `calc(${clamped}% ${sign} ${Math.abs(offset)}px)`;
+}
+
 export class PlayerstackVolume extends PlayerstackElement {
   /**
    * Declares `aria-label` as an observed attribute so the mute button's accessible name is
@@ -155,7 +175,10 @@ export class PlayerstackVolume extends PlayerstackElement {
     // in the Style_Layer centers the circle on this point per orientation.
     if (this.thumb !== null) {
       if (this.isVertical) {
-        this.thumb.style.bottom = `${thumbPercent}%`;
+        // Clamp the thumb inside the track at both ends: map 0..100% into a range INSET by the
+        // thumb radius (7px = half the 14px handle) top and bottom, so the circle never sticks out
+        // past the silence (0%) or full (100%) end (parity with the horizontal slider's inset).
+        this.thumb.style.bottom = verticalInset(thumbPercent);
         this.thumb.style.left = '';
       } else {
         this.thumb.style.left = `${thumbPercent}%`;
@@ -191,7 +214,8 @@ export class PlayerstackVolume extends PlayerstackElement {
     // Anchor the tooltip over the THUMB (mirrored for `end`). Vertical follows the thumb on the Y
     // axis (`bottom`), horizontal on the X axis (`left`); the Style_Layer centers it per axis.
     if (this.isVertical) {
-      this.tooltip.style.bottom = `${thumbPercent}%`;
+      // Same inset as the thumb so the read-out stays aligned with the handle at the extremes.
+      this.tooltip.style.bottom = verticalInset(thumbPercent);
       this.tooltip.style.left = '';
     } else {
       this.tooltip.style.left = `${thumbPercent}%`;

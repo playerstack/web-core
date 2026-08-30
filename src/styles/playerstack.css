@@ -403,6 +403,23 @@ playerstack-media-controller[data-hiding] playerstack-time-slider {
   pointer-events: none;
 }
 
+/* Keep the control bar (and the time-slider sibling) VISIBLE while a volume slider is open —
+   hovered or being dragged — even if the idle auto-hide timer fired `data-hiding` in the
+   meantime. Without this, an OPEN vertical volume column (which floats above the bar, over the
+   video) would vanish the instant the chrome auto-hides: the bar fades to `pointer-events:none`,
+   the `:hover` that keeps the column revealed is lost, and the slider snaps shut mid-interaction
+   (the "it closes when I move onto the slider WHILE PLAYING" bug — playback is when auto-hide is
+   active). `:has(playerstack-volume:hover)` / `[data-sliding]` holds the chrome up for exactly as
+   long as the user is on the volume, then normal auto-hide resumes. The auto-hide state machine
+   itself is untouched (A1/A8b) — this is a pure presentation override. */
+playerstack-media-controller[data-hiding]:has(playerstack-volume:hover) .playerstack-controls,
+playerstack-media-controller[data-hiding]:has(playerstack-volume:hover) playerstack-time-slider,
+playerstack-media-controller[data-hiding]:has(playerstack-volume[data-sliding]) .playerstack-controls,
+playerstack-media-controller[data-hiding]:has(playerstack-volume[data-sliding]) playerstack-time-slider {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* ==========================================================================
    Req 17 — keep-visible opt-out (auto-hide immunity).
    A `data-keep-visible` attribute (set by the skin from a `keepVisible` prop on a container or
@@ -865,18 +882,55 @@ playerstack-media-controller:not(:has(.playerstack-controls)) .playerstack-sideb
 /* Used by the sidebar volume, but keyed on the attribute so any placement can  */
 /* opt into vertical.                                                          */
 /* -------------------------------------------------------------------------- */
-.playerstack-sidebar-left playerstack-volume,
-.playerstack-sidebar-right playerstack-volume {
+/* Any vertical volume (sidebar OR bottom bar via `<Volume orientation="vertical">`) makes its
+   host a fixed-width positioning context so the slider column can float above the mute button
+   WITHOUT pushing the controls to its right — the whole point of forcing vertical in the bottom
+   bar (the chapter read-out stays put). */
+playerstack-volume[data-orientation='vertical'] {
   position: relative;
   height: auto;
   width: 36px;
   overflow: visible;
+  /* Lift the whole vertical-volume control above the full-stage `playerstack-play-state` click
+     catcher (its `[part='play-state-button']` is `inset:0; pointer-events:auto` at host z-index 5).
+     Without this the play-state button sits OVER the revealed slider column and swallows the
+     pointer, so the column never gets `:hover` and snaps shut the moment you move onto it — except
+     on the very first poster frame. A stacking context here (position + z-index) keeps the column
+     on top of the play-state catcher; 13 matches the volume tooltip layer, still under menus. */
+  z-index: 13;
 }
 
-/* The vertical slider column sits above the mute button, collapsed (height 0) until revealed. */
+/* Hover-bridge (timing fix). A transparent vertical corridor over the mute button that is
+   ALWAYS interactive (`pointer-events: auto`, NOT gated on `:hover`). This is the crucial detail:
+   a hover-gated bridge is a race — leaving the button drops the host `:hover`, which turns the
+   bridge inert BEFORE the pointer reaches it, so the column collapses mid-travel. Being always
+   interactive, the corridor catches the pointer the instant it leaves the button, keeping the
+   host hovered continuously all the way up to the revealed column. It sits BEHIND the button and
+   the column (`z-index: -1`), so it never steals the button's hover/tooltip nor the slider's
+   drag — those real elements are on top and win the pointer where they exist; the corridor only
+   fills the empty travel space between/around them. It spans from the button bottom up past the
+   top of the 80px column with headroom, and is a bit wider than the 36px control for diagonal
+   paths. The corridor is only over the volume icon (a narrow strip), so it does not meaningfully
+   block the video. */
+playerstack-volume[data-orientation='vertical']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 52px;
+  height: calc(100% + 108px);
+  z-index: -1;
+  pointer-events: auto;
+}
+
+/* The vertical slider column sits DIRECTLY above the mute button (no gap) so moving the pointer
+   from the button up into the column never crosses an un-hovered dead zone that would collapse it
+   (Bug 1). `bottom: 100%` butts it against the button; the visual breathing room is added as
+   inner `padding` on the slider instead of an outer gap. */
 playerstack-volume[data-orientation='vertical'] [part='volume'] {
   position: absolute;
-  bottom: calc(100% + 4px);
+  bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
   width: 36px;
@@ -885,14 +939,16 @@ playerstack-volume[data-orientation='vertical'] [part='volume'] {
   opacity: 0;
   transition: height 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s ease;
   pointer-events: none;
+  /* On top within the host's stacking context so nothing behind it can intercept the pointer. */
+  z-index: 2;
 }
 
-/* Reveal on hover/slide — grow the column height (this is a real vertical expand, not rotated). */
-.playerstack-sidebar-left playerstack-volume[data-orientation='vertical']:hover [part='volume'],
-.playerstack-sidebar-right playerstack-volume[data-orientation='vertical']:hover [part='volume'],
+/* Reveal on hover/slide — grow the column height (this is a real vertical expand, not rotated).
+   Generic (any placement): hovering the vertical volume host or its mute button, or while
+   sliding, opens the column. */
+playerstack-volume[data-orientation='vertical']:hover [part='volume'],
 playerstack-volume[data-orientation='vertical'][data-sliding] [part='volume'],
-.playerstack-sidebar-left [part='mute-button']:hover ~ [part='volume'],
-.playerstack-sidebar-right [part='mute-button']:hover ~ [part='volume'] {
+playerstack-volume[data-orientation='vertical'] [part='mute-button']:hover ~ [part='volume'] {
   height: 80px;
   overflow: visible;
   opacity: 1;
@@ -906,12 +962,15 @@ playerstack-volume[data-orientation='vertical'] [part='slider'] {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   margin: 0;
-  padding: 8px 0;
+  padding: 0;
   box-sizing: border-box;
 }
+/* The track fills the slider height. The thumb/read-out clamp is handled by the element, which
+   sets the thumb's `bottom` to a `calc()` whose travel range is inset by the thumb radius at both
+   ends (so the handle never overflows at 0%/100%) — no track margin needed here. */
 playerstack-volume[data-orientation='vertical'] [part='track'] {
   position: relative;
   width: 4px;
@@ -938,11 +997,17 @@ playerstack-volume[data-orientation='vertical'] [part='thumb'] {
   transform: translate(-50%, 50%);
 }
 
-/* Vertical volume tooltip: rides the Y axis next to the thumb. Its `bottom` is set inline from
-   the volume percentage (same value as the thumb), and it is offset to the RIGHT of the column so
-   the percentage read-out sits beside the current thumb position instead of over the track. */
+/* Vertical volume tooltip: rides the Y axis to the RIGHT of the thumb — NEVER above the column
+   (Bug 2: an above-the-column read-out collides with the mute glyph / other chrome). Its `bottom`
+   is set inline from the volume percentage (same value as the thumb). The base horizontal tooltip
+   anchors itself above the rail (`bottom: calc(100% + 22px)`, centered via `translateX(-50%)`);
+   here we RESET that — pin to the right edge, ride the Y axis, and center vertically on the thumb
+   with `translateY(50%)` — so the read-out sits beside the current position, not overhead. `top`
+   is forced `auto` so no inherited top ever lifts it above the column. */
 playerstack-volume[data-orientation='vertical'] [part='volume-tooltip'] {
   left: calc(100% + 6px);
+  right: auto;
+  top: auto;
   bottom: 0;
   transform: translateY(50%);
   white-space: nowrap;
@@ -1204,11 +1269,13 @@ playerstack-chapters[data-active='true'] [part='chapter-title']::before {
   }
 }
 
-/* Reveal the slider on hover of the mute button or the volume region, or when */
-/* actively sliding (data-sliding). Expanded width mirrors the desktop reveal.  */
-[part='mute-button']:hover ~ [part='volume'],
-[part='volume']:hover,
-playerstack-media-controller[data-volume-sliding] [part='volume'] {
+/* Reveal the slider on hover of the mute button or the volume region, or when actively sliding
+   (data-sliding). Expanded width mirrors the desktop reveal. Scoped to the HORIZONTAL slider
+   (`:not([data-orientation='vertical'])`) so it never fights the vertical column's height reveal
+   (the vertical variant is width-fixed and grows in height instead). */
+playerstack-volume:not([data-orientation='vertical']) [part='mute-button']:hover ~ [part='volume'],
+playerstack-volume:not([data-orientation='vertical']) [part='volume']:hover,
+playerstack-media-controller[data-volume-sliding] playerstack-volume:not([data-orientation='vertical']) [part='volume'] {
   /* Expanded width from the original `sliderWidth(false)` = 55px. `overflow:visible` once
      expanded so the thumb ball is never clipped at the ends (the collapsed state keeps
      `overflow:hidden` for the width reveal). */
@@ -2205,10 +2272,26 @@ playerstack-media-controller[data-fullscreen] [part='caption-options-item'] {
   opacity: 1;
 }
 
+/* Right-of-the-button placement (Req: vertical volume). The vertical slider column opens UPWARD
+   over the button, so the tooltip must not sit above it; placing it to the RIGHT (vertically
+   centered on the button) clears the column and stays inside the player (a below-button tooltip
+   would fall off the bottom edge in the bottom bar). Override the default horizontal centering
+   (`translateX(-50%)`): anchor the label's LEFT edge at the button's right edge (+6px gap) and
+   center it vertically on the button. */
+[part='tooltip-label'][data-placement='right'] {
+  transform: translateY(-50%);
+  margin-bottom: 0;
+  margin-left: 6px;
+}
+
 /* Fullscreen sizing (fullscreenStyles): larger font + bigger gap. */
 playerstack-media-controller[data-fullscreen] [part='tooltip-label'] {
   font-size: 130%;
   margin-bottom: 10px;
+}
+playerstack-media-controller[data-fullscreen] [part='tooltip-label'][data-placement='right'] {
+  margin-bottom: 0;
+  margin-left: 10px;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -2540,6 +2623,14 @@ playerstack-context-menu[data-open] [part='context-menu'] {
   color: #fff;
   cursor: pointer;
   white-space: nowrap;
+  /* Span the FULL menu width so the hover highlight covers the whole row, not just the item's
+     intrinsic content width. Without this a `<button>` shrinks to its icon+label, so a shorter
+     row (e.g. "Loop") highlighted only a partial box that stopped before the menu's right edge
+     while a longer sibling ("Picture in Picture") set the wider menu width. `box-sizing:border-box`
+     keeps the 12px horizontal padding inside that full width. */
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
 }
 
 [part='context-menu-item']:hover {
