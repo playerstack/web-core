@@ -9,6 +9,7 @@ import {
   domFrameworkAdapter,
   resolveSlotOrder,
   UI_ELEMENT_BINDINGS,
+  validateSlotPlacement,
 } from '@adapters/framework-adapter';
 import { PLAYERSTACK_ELEMENTS } from '@ui/element-registry';
 
@@ -155,8 +156,17 @@ const CANONICAL_ORDER: readonly string[] = [...COMPOSABLE_SLOTS]
 /** Every catalog part name (used to seed fast-check permutations). */
 const ALL_SLOT_NAMES: readonly string[] = COMPOSABLE_SLOTS.map((slot) => slot.name);
 
-/** The parts allowed to be containers (Req 3.7). */
-const CONTAINER_NAMES = ['BottomBar', 'Player', 'SidebarLeft', 'SidebarRight', 'TopBar'];
+/** The parts allowed to be containers (Req 3.7 / Req 15.1/15.2). */
+const CONTAINER_NAMES = [
+  'BottomBar',
+  'CenterControls',
+  'DesktopUI',
+  'MobileUI',
+  'Player',
+  'SidebarLeft',
+  'SidebarRight',
+  'TopBar',
+];
 
 describe('COMPOSABLE_SLOTS (composable catalog)', () => {
   const bindingTags = new Set(UI_ELEMENT_BINDINGS.map((binding) => binding.tagName));
@@ -170,7 +180,7 @@ describe('COMPOSABLE_SLOTS (composable catalog)', () => {
       }
     });
 
-    it('sets `container: true` on exactly Player and ControlBar and no other part (Req 3.7)', () => {
+    it('sets `container: true` on exactly the container parts and no other part (Req 3.7/15.1/15.2)', () => {
       const containers = COMPOSABLE_SLOTS.filter((slot) => slot.container === true)
         .map((slot) => slot.name)
         .sort();
@@ -343,5 +353,61 @@ describe('catalog purity and determinism (Req 3.3, 11.1, 11.2) — Property 6: c
 
     expect(source).not.toMatch(/from\s+['"](react|react-dom|vue|solid-js|svelte|@angular\/core)['"]/);
     expect(source).not.toMatch(/require\(\s*['"](react|react-dom|vue|solid-js|svelte|@angular\/core)['"]\s*\)/);
+  });
+});
+
+describe('validateSlotPlacement — container-placement restriction (Req 16)', () => {
+  const RESTRICTED = ['Timeline', 'Chapters', 'Heatmap'] as const;
+  const FORBIDDEN_CONTAINERS = ['TopBar', 'SidebarLeft', 'SidebarRight', 'CenterControls'] as const;
+
+  it('marks Timeline/Chapters/Heatmap as BottomBar-only in the catalog', () => {
+    for (const name of RESTRICTED) {
+      const slot = COMPOSABLE_SLOTS.find((s) => s.name === name);
+      expect(slot?.allowedContainers).toEqual(['BottomBar']);
+    }
+  });
+
+  it('allows a restricted part inside BottomBar', () => {
+    for (const name of RESTRICTED) {
+      expect(validateSlotPlacement(name, 'BottomBar')).toEqual({ ok: true });
+    }
+  });
+
+  it('rejects a restricted part inside any other container, with a descriptive reason', () => {
+    for (const name of RESTRICTED) {
+      for (const container of FORBIDDEN_CONTAINERS) {
+        const result = validateSlotPlacement(name, container);
+        expect(result.ok).toBe(false);
+        expect(result.reason).toContain(`<${name}>`);
+        expect(result.reason).toContain('<BottomBar>');
+        expect(result.reason).toContain(`<${container}>`);
+      }
+    }
+  });
+
+  it('rejects a restricted part at the top level (no container)', () => {
+    for (const name of RESTRICTED) {
+      const result = validateSlotPlacement(name, null);
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain('at the top level');
+    }
+  });
+
+  it('allows unrestricted parts anywhere (no allowedContainers)', () => {
+    expect(validateSlotPlacement('Volume', 'TopBar')).toEqual({ ok: true });
+    expect(validateSlotPlacement('Settings', 'SidebarLeft')).toEqual({ ok: true });
+    expect(validateSlotPlacement('PlayButton', null)).toEqual({ ok: true });
+  });
+
+  it('is pure/deterministic — repeated calls yield deep-equal results', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...ALL_SLOT_NAMES),
+        fc.option(fc.constantFrom(...ALL_SLOT_NAMES), { nil: null }),
+        (part, container) => {
+          expect(validateSlotPlacement(part, container)).toEqual(validateSlotPlacement(part, container));
+        },
+      ),
+    );
   });
 });

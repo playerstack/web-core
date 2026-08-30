@@ -216,6 +216,92 @@ describe('playerstack-volume', () => {
     });
   });
 
+  describe('orientation="vertical" (native vertical drag: bottom = silence, up = louder)', () => {
+    // A tall track: 4px wide, 100px tall, spanning y 0..100. `bottom` is 100, `top` is 0.
+    const RECT_VERTICAL: DOMRect = {
+      left: 0,
+      width: 4,
+      top: 0,
+      height: 100,
+      right: 4,
+      bottom: 100,
+      x: 0,
+      y: 0,
+      toJSON() {
+        return {};
+      },
+    };
+
+    function mountVertical(): { host: PlayerstackMediaController; el: HTMLElement } {
+      const host = document.createElement('playerstack-media-controller') as PlayerstackMediaController;
+      document.body.appendChild(host);
+      const el = document.createElement('playerstack-volume');
+      el.setAttribute('orientation', 'vertical');
+      host.appendChild(el);
+      return { host, el };
+    }
+
+    it('reflects data-orientation="vertical" on the host', () => {
+      const { el } = mountVertical();
+      expect(el.getAttribute('data-orientation')).toBe('vertical');
+    });
+
+    it('maps the pointer Y to volume inverted (clientY near the bottom → low, near the top → high)', () => {
+      const { el } = mountVertical();
+      const slider = el.querySelector('[part="slider"]') as HTMLElement;
+      const track = el.querySelector('[part="track"]') as HTMLElement;
+      jest.spyOn(track, 'getBoundingClientRect').mockReturnValue(RECT_VERTICAL);
+
+      const volumes: number[] = [];
+      document.addEventListener('playerstack-volume-request', (e) =>
+        volumes.push((e as CustomEvent<{ volume: number }>).detail.volume),
+      );
+
+      // clientY 90 → offsetY = bottom(100) - 90 = 10 → 0.1 (near bottom = quiet)
+      slider.dispatchEvent(new MouseEvent('pointerdown', { clientY: 90, bubbles: true }));
+      // Drag up: clientY 50 → 0.5, clientY 10 → 0.9
+      slider.dispatchEvent(new MouseEvent('pointermove', { clientY: 50, bubbles: true }));
+      slider.dispatchEvent(new MouseEvent('pointermove', { clientY: 10, bubbles: true }));
+      slider.dispatchEvent(new MouseEvent('pointerup', { clientY: 0, bubbles: true }));
+
+      expect(volumes).toHaveLength(4);
+      expect(volumes[0]).toBeCloseTo(0.1);
+      expect(volumes[1]).toBeCloseTo(0.5);
+      expect(volumes[2]).toBeCloseTo(0.9);
+      expect(volumes[3]).toBeCloseTo(1.0);
+    });
+
+    it('paints the fill HEIGHT (not width) and positions the thumb via bottom', () => {
+      const { host, el } = mountVertical();
+      host.store.set({ volume: 0.75, isMuted: false });
+
+      const trackFill = el.querySelector('[part="track-fill"]') as HTMLElement;
+      const thumb = el.querySelector('[part="thumb"]') as HTMLElement;
+
+      expect(trackFill.style.height).toBe('75%');
+      expect(trackFill.style.width).toBe('');
+      expect(thumb.style.bottom).toBe('75%');
+      expect(thumb.style.left).toBe('');
+    });
+
+    it('shows the percentage tooltip anchored on the Y axis while dragging', () => {
+      const { host, el } = mountVertical();
+      // The tooltip mirrors the STORE volume (like horizontal): set it, then start a drag.
+      host.store.set({ volume: 0.5, isMuted: false });
+      const slider = el.querySelector('[part="slider"]') as HTMLElement;
+      const track = el.querySelector('[part="track"]') as HTMLElement;
+      const tooltip = el.querySelector('[part="volume-tooltip"]') as HTMLElement;
+      jest.spyOn(track, 'getBoundingClientRect').mockReturnValue(RECT_VERTICAL);
+
+      slider.dispatchEvent(new MouseEvent('pointerdown', { clientY: 50, bubbles: true }));
+
+      // Visible + anchored on the Y axis (bottom, matching the store volume) — never on `left`.
+      expect(tooltip.getAttribute('data-visible')).toBe('true');
+      expect(tooltip.style.bottom).toBe('50%');
+      expect(tooltip.style.left).toBe('');
+    });
+  });
+
   describe('fill-origin="end" (audio: full volume at left, silence at icon side, no mute snap)', () => {
     function mountEnd(): { host: PlayerstackMediaController; el: HTMLElement } {
       const host = document.createElement('playerstack-media-controller') as PlayerstackMediaController;

@@ -12,8 +12,13 @@
 export { domFrameworkAdapter, UI_ELEMENT_BINDINGS } from '@adapters/framework-adapter';
 
 // Composable-player-components catalog (agnostic data + pure functions, React-free — A1).
-export { COMPOSABLE_SLOTS, DEFAULT_COMPOSITION, resolveSlotOrder } from '@adapters/framework-adapter';
+export {
+  COMPOSABLE_SLOTS,
+  DEFAULT_COMPOSITION,
+  resolveSlotOrder,
+  validateSlotPlacement,
+} from '@adapters/framework-adapter';
 
 // Public types.
 export type { FrameworkAdapterContract, UiElementBinding } from '@typings/adapters/framework-adapter.types';
-export type { SlotRegion, ComposableSlot } from '@adapters/framework-adapter';
+export type { SlotRegion, ComposableSlot, SlotPlacementResult } from '@adapters/framework-adapter';

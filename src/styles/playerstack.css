@@ -402,6 +402,47 @@ playerstack-media-controller[data-hiding] playerstack-time-slider {
   opacity: 0;
   pointer-events: none;
 }
+
+/* ==========================================================================
+   Req 17 — keep-visible opt-out (auto-hide immunity).
+   A `data-keep-visible` attribute (set by the skin from a `keepVisible` prop on a container or
+   a leaf part) exempts that element/subtree from the auto-hide fade. Three cases:
+   1. The WRAPPER itself is opted out (a whole container: BottomBar/TopBar/Sidebar) — the wrapper
+      stays fully opaque + interactive even while hiding. Highest-specificity attribute selector
+      wins over the plain `[data-hiding] <wrapper>` fade above.
+   2. A LEAF element is opted out (e.g. `<Settings keepVisible>`), so its containing bar
+      `:has([data-keep-visible])` must NOT fade as a block (opacity composites and would hide the
+      opted-out child too); instead only its OTHER leaves fade individually.
+   3. The time-slider (Timeline) is a sibling, opted out via its own `data-keep-visible`.
+   These rules are appended AFTER the fade rules so equal-specificity ties resolve in their favour,
+   and the attribute selectors add specificity on top.
+   ========================================================================== */
+
+/* Case 1 + 3: a wrapper/element that is itself opted out stays visible while hiding. */
+playerstack-media-controller[data-hiding] .playerstack-controls[data-keep-visible],
+playerstack-media-controller[data-hiding] playerstack-time-slider[data-keep-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Case 2: the bottom bar contains an opted-out LEAF — keep the bar itself opaque so the leaf
+   shows, then fade only the NON-opted-out leaves inside the left/right clusters individually. */
+playerstack-media-controller[data-hiding] .playerstack-controls:has([data-keep-visible]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+playerstack-media-controller[data-hiding] .playerstack-controls:has([data-keep-visible]) .playerstack-controls-left > *:not([data-keep-visible]),
+playerstack-media-controller[data-hiding] .playerstack-controls:has([data-keep-visible]) .playerstack-controls-right > *:not([data-keep-visible]) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+/* The opted-out leaves stay fully visible + interactive. */
+playerstack-media-controller[data-hiding] .playerstack-controls [data-keep-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .playerstack-controls,
 playerstack-time-slider {
   opacity: 1;
@@ -678,6 +719,23 @@ playerstack-media-controller[data-hiding] .playerstack-top-bar {
   pointer-events: none;
 }
 
+/* Req 17: TopBar opted out as a whole (`<TopBar keepVisible>`) OR containing an opted-out leaf
+   stays visible; when only a leaf is opted out, its non-opted siblings fade individually. */
+playerstack-media-controller[data-hiding] .playerstack-top-bar[data-keep-visible],
+playerstack-media-controller[data-hiding] .playerstack-top-bar:has([data-keep-visible]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+playerstack-media-controller[data-hiding] .playerstack-top-bar:not([data-keep-visible]):has([data-keep-visible]) > *:not([data-keep-visible]) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+playerstack-media-controller[data-hiding] .playerstack-top-bar [data-keep-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 playerstack-media-controller[data-fullscreen] .playerstack-top-bar {
   height: 54px;
 }
@@ -703,6 +761,22 @@ playerstack-media-controller[data-fullscreen] .playerstack-top-bar {
 playerstack-media-controller[data-hiding] .playerstack-sidebar-left {
   opacity: 0;
   pointer-events: none;
+}
+
+/* Req 17: SidebarLeft keep-visible (whole container or an opted-out leaf inside). */
+playerstack-media-controller[data-hiding] .playerstack-sidebar-left[data-keep-visible],
+playerstack-media-controller[data-hiding] .playerstack-sidebar-left:has([data-keep-visible]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+playerstack-media-controller[data-hiding] .playerstack-sidebar-left:not([data-keep-visible]):has([data-keep-visible]) > *:not([data-keep-visible]) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+playerstack-media-controller[data-hiding] .playerstack-sidebar-left [data-keep-visible] {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 playerstack-media-controller[data-fullscreen] .playerstack-sidebar-left {
@@ -732,8 +806,146 @@ playerstack-media-controller[data-hiding] .playerstack-sidebar-right {
   pointer-events: none;
 }
 
+/* Req 17: SidebarRight keep-visible (whole container or an opted-out leaf inside). */
+playerstack-media-controller[data-hiding] .playerstack-sidebar-right[data-keep-visible],
+playerstack-media-controller[data-hiding] .playerstack-sidebar-right:has([data-keep-visible]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+playerstack-media-controller[data-hiding] .playerstack-sidebar-right:not([data-keep-visible]):has([data-keep-visible]) > *:not([data-keep-visible]) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+playerstack-media-controller[data-hiding] .playerstack-sidebar-right [data-keep-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 playerstack-media-controller[data-fullscreen] .playerstack-sidebar-right {
   width: 58px;
+}
+
+/* Sidebar alignment via data-align attribute (default: center). */
+.playerstack-sidebar-left[data-align='top'],
+.playerstack-sidebar-right[data-align='top'] {
+  justify-content: flex-start;
+  padding-top: 12px;
+}
+
+.playerstack-sidebar-left[data-align='center'],
+.playerstack-sidebar-right[data-align='center'] {
+  justify-content: center;
+}
+
+.playerstack-sidebar-left[data-align='bottom'],
+.playerstack-sidebar-right[data-align='bottom'] {
+  justify-content: flex-end;
+  padding-bottom: 48px;
+}
+
+/* When there is NO bottom control bar (`.playerstack-controls`) — i.e. the author placed nothing
+   in a `BottomBar` — a bottom-aligned sidebar has no timeline/bar to sit above, so it must fill
+   ALL the way to the bottom edge instead of reserving the 48px control-bar gap (the empty band
+   the user saw). Detect the absence of the bar on the controller host with `:not(:has(...))` and
+   drop the reserved padding so the sidebar's content sits flush at the bottom. */
+playerstack-media-controller:not(:has(.playerstack-controls)) .playerstack-sidebar-left[data-align='bottom'],
+playerstack-media-controller:not(:has(.playerstack-controls)) .playerstack-sidebar-right[data-align='bottom'] {
+  padding-bottom: 12px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Vertical volume slider (`playerstack-volume[data-orientation='vertical']`).  */
+/*                                                                            */
+/* NATIVE vertical slider: the element tracks the pointer on the Y axis (drag  */
+/* up = louder) and paints the fill from the BOTTOM up, so there is NO CSS      */
+/* rotation (the old `transform: rotate(-90deg)` hack distorted the drag and    */
+/* misplaced the tooltip). The mute button stays in flow; the slider is an      */
+/* absolutely-positioned vertical column revealed above it on hover/drag.       */
+/* Used by the sidebar volume, but keyed on the attribute so any placement can  */
+/* opt into vertical.                                                          */
+/* -------------------------------------------------------------------------- */
+.playerstack-sidebar-left playerstack-volume,
+.playerstack-sidebar-right playerstack-volume {
+  position: relative;
+  height: auto;
+  width: 36px;
+  overflow: visible;
+}
+
+/* The vertical slider column sits above the mute button, collapsed (height 0) until revealed. */
+playerstack-volume[data-orientation='vertical'] [part='volume'] {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: height 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s ease;
+  pointer-events: none;
+}
+
+/* Reveal on hover/slide — grow the column height (this is a real vertical expand, not rotated). */
+.playerstack-sidebar-left playerstack-volume[data-orientation='vertical']:hover [part='volume'],
+.playerstack-sidebar-right playerstack-volume[data-orientation='vertical']:hover [part='volume'],
+playerstack-volume[data-orientation='vertical'][data-sliding] [part='volume'],
+.playerstack-sidebar-left [part='mute-button']:hover ~ [part='volume'],
+.playerstack-sidebar-right [part='mute-button']:hover ~ [part='volume'] {
+  height: 80px;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition: height 0.2s cubic-bezier(0, 0, 0.2, 1), opacity 0.2s ease;
+}
+
+/* The slider becomes a vertical column: the track is a tall thin bar centered in the column. */
+playerstack-volume[data-orientation='vertical'] [part='slider'] {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin: 0;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+playerstack-volume[data-orientation='vertical'] [part='track'] {
+  position: relative;
+  width: 4px;
+  height: 100%;
+  left: auto;
+  top: auto;
+  transform: none;
+}
+/* Fill grows from the bottom edge upward; its height is set inline from the volume percentage. */
+playerstack-volume[data-orientation='vertical'] [part='track-fill'] {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  width: 100%;
+  height: 0;
+}
+/* Thumb rides the Y axis: its `bottom` is set inline from the volume percentage; center it on
+   that point horizontally and vertically. */
+playerstack-volume[data-orientation='vertical'] [part='thumb'] {
+  left: 50%;
+  top: auto;
+  transform: translate(-50%, 50%);
+}
+
+/* Vertical volume tooltip: rides the Y axis next to the thumb. Its `bottom` is set inline from
+   the volume percentage (same value as the thumb), and it is offset to the RIGHT of the column so
+   the percentage read-out sits beside the current thumb position instead of over the track. */
+playerstack-volume[data-orientation='vertical'] [part='volume-tooltip'] {
+  left: calc(100% + 6px);
+  bottom: 0;
+  transform: translateY(50%);
+  white-space: nowrap;
 }
 
 /* Hide additional containers in mobile mode (mobile has its own layout). */
@@ -3395,6 +3607,33 @@ playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile
   pointer-events: none;
 }
 
+/* Req 17 — keep-visible opt-out for the mobile zones. A zone opted out as a whole
+   (`data-keep-visible` on the zone) OR containing an opted-out leaf stays visible; when only a
+   leaf is opted out, the zone's non-opted children fade individually. Applies to all three
+   mobile zones (top bar, center controls, bottom bar). */
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-top-bar'][data-keep-visible],
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-top-bar']:has([data-keep-visible]),
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-center-controls'][data-keep-visible],
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-center-controls']:has([data-keep-visible]),
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-bottom-bar'][data-keep-visible],
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-bottom-bar']:has([data-keep-visible]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-top-bar']:not([data-keep-visible]):has([data-keep-visible]) > *:not([data-keep-visible]),
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-center-controls']:not([data-keep-visible]):has([data-keep-visible]) > *:not([data-keep-visible]),
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-bottom-bar']:not([data-keep-visible]):has([data-keep-visible]) > *:not([data-keep-visible]) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0, 0, 0.2, 1);
+}
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-top-bar'] [data-keep-visible],
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-center-controls'] [data-keep-visible],
+playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='mobile-bottom-bar'] [data-keep-visible] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* Top-bar buttons (StyledMobileSettingsButton): 32px transparent icon buttons. */
 playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-top-bar'] button {
   background: none;
@@ -3634,6 +3873,17 @@ playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-contr
   color: #fff;
   opacity: 0.85;
   cursor: pointer;
+}
+
+/* Size the icon inside mobile nav buttons to fill the 48px button box. */
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='nav-prev'] playerstack-icon,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='nav-prev'] [part='icon'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='nav-prev'] svg,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='nav-next'] playerstack-icon,
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='nav-next'] [part='icon'],
+playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] [part='nav-next'] svg {
+  width: 48px;
+  height: 48px;
 }
 
 playerstack-media-controller[data-skin-mode='mobile'] [part='mobile-center-controls'] button[disabled] {

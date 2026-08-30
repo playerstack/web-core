@@ -42,6 +42,12 @@ export class PlayerstackVolume extends PlayerstackElement {
     // right (video). `end` = louder to the LEFT / silence at the icon-side right edge, and the
     // pointer axis inverts — the audio slider by design. Geometry, not RTL.
     fillOrigin: { attribute: 'fill-origin', type: 'string' },
+    // `orientation` selects the drag axis + fill direction. `horizontal` (default) tracks the
+    // pointer X across the track width (video/audio bottom bars). `vertical` tracks the pointer
+    // Y across the track HEIGHT with bottom = silence and top = full volume — a NATIVE vertical
+    // slider (used by the sidebar volume) so the drag follows the pointer exactly instead of the
+    // former CSS-rotation hack that distorted the drag and misplaced the tooltip.
+    orientation: { attribute: 'orientation', type: 'string' },
   } as const;
 
   /**
@@ -81,6 +87,11 @@ export class PlayerstackVolume extends PlayerstackElement {
     return this.getAttribute('fill-origin') === 'end' ? 'end' : 'start';
   }
 
+  /** `true` when the slider tracks the pointer on the Y axis (bottom = silence, top = full). */
+  private get isVertical(): boolean {
+    return this.getAttribute('orientation') === 'vertical';
+  }
+
   /**
    * Reflects the latest `isMuted` state to `data-muted` on the host (Req 3.3), tracks the
    * mute/volume values for the handlers, and updates the slider fill width from `volume`.
@@ -112,23 +123,44 @@ export class PlayerstackVolume extends PlayerstackElement {
     } else {
       this.removeAttribute('data-fill-origin');
     }
+    // Reflect the orientation so the Style_Layer lays the slider out vertically vs horizontally.
+    if (this.isVertical) {
+      this.setAttribute('data-orientation', 'vertical');
+    } else {
+      this.removeAttribute('data-orientation');
+    }
     // Pure geometry: fill follows the effective (muted→0) volume; thumb mirrored for `end`.
+    // The percentages are axis-agnostic — only which CSS dimension they drive differs.
     const { fillPercent, thumbPercent } = getVolumeFillGeometry({
       volume: this.volume,
       muted: this.muted,
       origin: this.fillOrigin,
     });
     if (this.trackFill !== null) {
-      // Only the WIDTH is set inline; the anchoring edge (left vs right) is owned by the
-      // Style_Layer keyed on the reflected `data-fill-origin`, so we never fight the base
-      // `[part='track-fill'] { left: 0 }` rule with inline `auto` (which behaved inconsistently
-      // across jsdom/browsers).
-      this.trackFill.style.width = `${fillPercent}%`;
+      if (this.isVertical) {
+        // Vertical: the fill grows from the BOTTOM upward (silence→full). The Style_Layer anchors
+        // it to the bottom edge; only the HEIGHT is set inline. Clear any horizontal width so a
+        // reused element (orientation flip) never keeps a stale inline width.
+        this.trackFill.style.height = `${fillPercent}%`;
+        this.trackFill.style.width = '';
+      } else {
+        // Horizontal: only the WIDTH is set inline; the anchoring edge (left vs right) is owned by
+        // the Style_Layer keyed on the reflected `data-fill-origin`.
+        this.trackFill.style.width = `${fillPercent}%`;
+        this.trackFill.style.height = '';
+      }
     }
-    // Thumb at the (possibly mirrored) real-volume position. `transform: translate(-50%,-50%)`
-    // centers the circle on this point.
+    // Thumb at the (possibly mirrored) real-volume position. Vertical uses `bottom` (0% = silence
+    // at the bottom, 100% = full at the top); horizontal uses `left`. `transform: translate(...)`
+    // in the Style_Layer centers the circle on this point per orientation.
     if (this.thumb !== null) {
-      this.thumb.style.left = `${thumbPercent}%`;
+      if (this.isVertical) {
+        this.thumb.style.bottom = `${thumbPercent}%`;
+        this.thumb.style.left = '';
+      } else {
+        this.thumb.style.left = `${thumbPercent}%`;
+        this.thumb.style.bottom = '';
+      }
     }
   }
 
@@ -156,8 +188,15 @@ export class PlayerstackVolume extends PlayerstackElement {
     });
     // Read-out shows the audible level (0% while muted).
     this.tooltip.textContent = `${Math.round(fillPercent)}%`;
-    // Anchor the tooltip over the THUMB (mirrored for `end`). CSS centers it (translateX(-50%)).
-    this.tooltip.style.left = `${thumbPercent}%`;
+    // Anchor the tooltip over the THUMB (mirrored for `end`). Vertical follows the thumb on the Y
+    // axis (`bottom`), horizontal on the X axis (`left`); the Style_Layer centers it per axis.
+    if (this.isVertical) {
+      this.tooltip.style.bottom = `${thumbPercent}%`;
+      this.tooltip.style.left = '';
+    } else {
+      this.tooltip.style.left = `${thumbPercent}%`;
+      this.tooltip.style.bottom = '';
+    }
     this.tooltip.setAttribute('data-visible', 'true');
   }
 
@@ -236,15 +275,27 @@ export class PlayerstackVolume extends PlayerstackElement {
     slider.appendChild(tooltip);
     volume.appendChild(slider);
 
-    // Computes a 0..1 volume from a pointer X relative to the track's bounding rect using the
-    // SAME pure geometry as the headless layer (Req 1.6) and emits a volume intent (Req 2.1).
-    // Returns `false` when the track has no width (jsdom / not laid out) so callers can bail.
-    const emitVolumeAt = (clientX: number): boolean => {
+    // Computes a 0..1 volume from a pointer position relative to the track's bounding rect using
+    // the SAME pure geometry as the headless layer (Req 1.6) and emits a volume intent (Req 2.1).
+    // Horizontal reads the X offset over the track WIDTH; vertical reads the Y offset over the
+    // track HEIGHT but INVERTED (`rect.bottom - clientY`) so the bottom is silence and dragging
+    // upward raises the volume — the natural vertical-slider feel. Returns `false` when the track
+    // has no extent on the active axis (jsdom / not laid out) so callers can bail.
+    const emitVolumeAt = (event: PointerEvent): boolean => {
       const rect = track.getBoundingClientRect();
+      if (this.isVertical) {
+        if (rect.height <= 0) {
+          return false;
+        }
+        const offsetY = rect.bottom - event.clientY;
+        const nextVolume = getVolumeFromPointer(offsetY, rect.height, this.fillOrigin);
+        this.dispatchRequest('playerstack-volume-request', { volume: nextVolume });
+        return true;
+      }
       if (rect.width <= 0) {
         return false;
       }
-      const offsetX = clientX - rect.left;
+      const offsetX = event.clientX - rect.left;
       const nextVolume = getVolumeFromPointer(offsetX, rect.width, this.fillOrigin);
       this.dispatchRequest('playerstack-volume-request', { volume: nextVolume });
       return true;
@@ -256,7 +307,7 @@ export class PlayerstackVolume extends PlayerstackElement {
     // pointer is captured (when supported) so the drag tracks past the track bounds — matching
     // the original which attached document-level mousemove/mouseup while sliding.
     const onPointerDown = (event: PointerEvent): void => {
-      if (!emitVolumeAt(event.clientX)) {
+      if (!emitVolumeAt(event)) {
         return;
       }
       this.dragging = true;
@@ -281,7 +332,7 @@ export class PlayerstackVolume extends PlayerstackElement {
       if (!this.dragging) {
         return;
       }
-      emitVolumeAt(event.clientX);
+      emitVolumeAt(event);
       // Keep the read-out following the drag.
       this.refreshTooltip();
     };
@@ -295,7 +346,7 @@ export class PlayerstackVolume extends PlayerstackElement {
       this.dragging = false;
       // Drag ended: drop the `data-sliding` reveal hint (hover keeps it open if still hovered).
       this.reflectState({ sliding: null });
-      emitVolumeAt(event.clientX);
+      emitVolumeAt(event);
       // Drag ended: keep the read-out only while still hovering (original hid it when the drag
       // ended unless the pointer stayed over the slider).
       this.refreshTooltip();

@@ -96,7 +96,7 @@ export const UI_ELEMENT_BINDINGS: readonly UiElementBinding[] = [
   // `end` = full volume at the left / inverted pointer — audio design); emits mute/unmute/volume.
   {
     tagName: 'playerstack-volume',
-    attributes: ['aria-label', 'fill-origin'],
+    attributes: ['aria-label', 'fill-origin', 'orientation'],
     requestEvents: ['playerstack-mute-request', 'playerstack-unmute-request', 'playerstack-volume-request'],
   },
   // Progress slider: `aria-label` plus the optional `sprite-vtt-file` timelens hint;
@@ -298,7 +298,8 @@ export interface ComposableSlot {
   readonly name: string;
   /**
    * `playerstack-*` tag backing the part, or `null` when the part is a container
-   * (`Player`/`BottomBar`/`TopBar`/`SidebarLeft`/`SidebarRight`), an engine-only input
+   * (`Player`/`BottomBar`/`TopBar`/`SidebarLeft`/`SidebarRight`/`DesktopUI`/`MobileUI`/
+   * `CenterControls`), an engine-only input
    * (`Source`), or a skin-owned `<button>`/overlay not yet promoted to a Custom Element
    * (`Poster`, `CaptionsToggle`, `Cast`). Every non-null tag MUST already exist in
    * `UI_ELEMENT_BINDINGS` above (Req 3.4).
@@ -308,18 +309,32 @@ export interface ComposableSlot {
   readonly region: SlotRegion;
   /** Canonical order index across the catalog (smaller = earlier); unique per region. */
   readonly order: number;
-  /** Whether the part groups other slots — containers: `Player`, `BottomBar`, `TopBar`, `SidebarLeft`, `SidebarRight` (Req 3.7). */
+  /**
+   * Whether the part groups other slots — containers: `Player`, `BottomBar`, `TopBar`,
+   * `SidebarLeft`, `SidebarRight`, plus the per-mode wrappers `DesktopUI`/`MobileUI` and the
+   * mobile-only `CenterControls` (Req 3.7 / Req 15.1/15.2).
+   */
   readonly container?: boolean;
   /** Whether the part belongs to the default composition (see `DEFAULT_COMPOSITION`). */
   readonly inDefault: boolean;
+  /**
+   * Container-placement restriction (Req 16). When present, this slot is ONLY valid as a direct
+   * child of one of the listed containers; placing it inside any other container (or at the
+   * shared/top level) is an authoring error. Timeline-bound parts (`Timeline`, `Chapters`,
+   * `Heatmap`) ride on the bottom-bar progress slider, so they are restricted to `BottomBar`.
+   * Absent = the slot may live in any container. Kept here (agnostic catalog) so every skin
+   * enforces the SAME rule from one source of truth (A6/A7).
+   */
+  readonly allowedContainers?: readonly string[];
 }
 
 /**
  * Agnostic catalog of composable parts. Every skin derives its public surface and its
  * canonical DOM order from this table (A7). Each non-null `element` references a tag that
  * already exists in `UI_ELEMENT_BINDINGS` (Req 3.4); `container: true` is set on root
- * (`Player`) and on the four positionable control containers (`BottomBar`, `TopBar`,
- * `SidebarLeft`, `SidebarRight`) (Req 3.7); `order` is unique within each region.
+ * (`Player`), on the four positionable control containers (`BottomBar`, `TopBar`,
+ * `SidebarLeft`, `SidebarRight`), on the per-mode wrappers (`DesktopUI`, `MobileUI`) and on the
+ * mobile-only `CenterControls` (Req 3.7 / Req 15.1/15.2); `order` is unique within each region.
  */
 export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
   {
@@ -332,6 +347,11 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
   },
   // `Source` only feeds the media engine (sources/fullHDQualityBreak) — it renders no UI (element: null).
   { name: 'Source', element: null, region: 'container', order: 5, inDefault: false },
+  // Per-mode composition wrappers (Req 15). `DesktopUI`/`MobileUI` are root-level containers (like
+  // `Player`) that hold their own container subtree; each layout consumes ONLY its own branch. They
+  // render no UI themselves (element: null) and are opt-in (inDefault: false).
+  { name: 'DesktopUI', element: null, region: 'container', order: 32, container: true, inDefault: false },
+  { name: 'MobileUI', element: null, region: 'container', order: 33, container: true, inDefault: false },
   { name: 'PlayOverlay', element: 'playerstack-play-state', region: 'stage-overlay', order: 10, inDefault: true },
   // `Poster` is a skin-owned `.playerstack-poster` div, not a Custom Element (element: null).
   { name: 'Poster', element: null, region: 'stage-overlay', order: 20, inDefault: true },
@@ -342,6 +362,9 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
   { name: 'TopBar', element: null, region: 'control-bar', order: 35, container: true, inDefault: false },
   { name: 'SidebarLeft', element: null, region: 'control-bar', order: 36, container: true, inDefault: false },
   { name: 'SidebarRight', element: null, region: 'control-bar', order: 37, container: true, inDefault: false },
+  // `CenterControls` is a mobile-only control container (prev·play·next centered over the video);
+  // desktop has no equivalent. It groups controls like `BottomBar`/`TopBar` (Req 15.2).
+  { name: 'CenterControls', element: null, region: 'control-bar', order: 38, container: true, inDefault: false },
   { name: 'BottomBar', element: null, region: 'control-bar', order: 40, container: true, inDefault: true },
   { name: 'PrevButton', element: null, region: 'control-bar-left', order: 50, inDefault: false },
   { name: 'NextButton', element: null, region: 'control-bar-left', order: 65, inDefault: false },
@@ -352,7 +375,36 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
   // now exists in `UI_ELEMENT_BINDINGS` above, so `element` is the bound tag (Req 3.4: a non-null
   // tag MUST already be bound). It stays out of the default composition (`inDefault: false`).
   { name: 'Title', element: 'playerstack-title', region: 'control-bar-left', order: 90, inDefault: false },
-  { name: 'Timeline', element: 'playerstack-time-slider', region: 'timeline', order: 100, inDefault: true },
+  // Timeline + its riders (Chapters/Heatmap) render on the bottom-bar progress slider, so they
+  // are ONLY valid inside `BottomBar` (Req 16). Placing them in `TopBar`/`SidebarLeft`/
+  // `SidebarRight`/`CenterControls` throws at resolve time and is a TS error in the editor.
+  {
+    name: 'Timeline',
+    element: 'playerstack-time-slider',
+    region: 'timeline',
+    order: 100,
+    inDefault: true,
+    allowedContainers: ['BottomBar'],
+  },
+  // `Chapters`/`Heatmap` are timeline RIDERS: their content (`chapters`/`heatmapData`) paints on
+  // the bottom-bar progress slider, so they share Timeline's `BottomBar`-only restriction (Req 16).
+  // They are opt-in (`inDefault: false`) and never render standalone UI outside the slider.
+  {
+    name: 'Chapters',
+    element: 'playerstack-chapters',
+    region: 'timeline',
+    order: 101,
+    inDefault: false,
+    allowedContainers: ['BottomBar'],
+  },
+  {
+    name: 'Heatmap',
+    element: 'playerstack-heatmap',
+    region: 'timeline',
+    order: 102,
+    inDefault: false,
+    allowedContainers: ['BottomBar'],
+  },
   // `CaptionsToggle` is a skin-owned `<button>` (A2 promotion candidate: playerstack-captions-toggle).
   { name: 'CaptionsToggle', element: null, region: 'control-bar-right', order: 110, inDefault: true },
   { name: 'Settings', element: 'playerstack-settings', region: 'control-bar-right', order: 120, inDefault: true },
@@ -387,4 +439,45 @@ export function resolveSlotOrder(names: readonly string[]): string[] {
   return names
     .filter((name) => orderByName.has(name))
     .sort((a, b) => (orderByName.get(a) ?? 0) - (orderByName.get(b) ?? 0));
+}
+
+/**
+ * Lookup of every slot that carries a container-placement restriction (Req 16), mapping the
+ * part name → its allowed container names. Built once from the catalog so the rule has a single
+ * source of truth (A6/A7): today `Timeline`/`Chapters`/`Heatmap` → `['BottomBar']`.
+ */
+const ALLOWED_CONTAINERS_BY_NAME = new Map<string, readonly string[]>(
+  COMPOSABLE_SLOTS.filter((slot) => slot.allowedContainers != null).map(
+    (slot) => [slot.name, slot.allowedContainers as readonly string[]] as const,
+  ),
+);
+
+/** Outcome of a placement check: `ok` plus, when invalid, the human-readable reason. */
+export interface SlotPlacementResult {
+  readonly ok: boolean;
+  readonly reason?: string;
+}
+
+/**
+ * Validates that a composable `partName` is allowed to sit inside `containerName` (Req 16). Pure
+ * and framework-agnostic: it only consults the catalog's `allowedContainers`, so every skin
+ * enforces the identical rule from this one function (A7). A part with NO restriction is always
+ * allowed. A restricted part is allowed ONLY inside one of its listed containers; anywhere else
+ * (a different container, or the shared/top level where `containerName` is `null`) is invalid and
+ * the returned `reason` names the part and the required container(s) for the thrown error.
+ */
+export function validateSlotPlacement(partName: string, containerName: string | null): SlotPlacementResult {
+  const allowed = ALLOWED_CONTAINERS_BY_NAME.get(partName);
+  if (allowed == null) {
+    return { ok: true };
+  }
+  if (containerName != null && allowed.includes(containerName)) {
+    return { ok: true };
+  }
+  const where = containerName == null ? 'at the top level' : `inside <${containerName}>`;
+  const targets = allowed.map((name) => `<${name}>`).join(' or ');
+  return {
+    ok: false,
+    reason: `<${partName}> can only be used inside ${targets}, not ${where}.`,
+  };
 }
