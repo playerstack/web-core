@@ -180,7 +180,12 @@ export type {
 } from '@typings/adapters.types';
 
 // Composable-player-components catalog (agnostic data + pure functions, React-free — A1)
-export { COMPOSABLE_SLOTS, DEFAULT_COMPOSITION, resolveSlotOrder } from '@adapters/framework-adapter';
+export {
+  COMPOSABLE_SLOTS,
+  DEFAULT_COMPOSITION,
+  AUDIO_DEFAULT_COMPOSITION,
+  resolveSlotOrder,
+} from '@adapters/framework-adapter';
 export type { SlotRegion, ComposableSlot } from '@adapters/framework-adapter';
 
 // Types

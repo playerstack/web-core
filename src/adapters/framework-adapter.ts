@@ -315,8 +315,17 @@ export interface ComposableSlot {
    * mobile-only `CenterControls` (Req 3.7 / Req 15.1/15.2).
    */
   readonly container?: boolean;
-  /** Whether the part belongs to the default composition (see `DEFAULT_COMPOSITION`). */
+  /** Whether the part belongs to the VIDEO default composition (see `DEFAULT_COMPOSITION`). */
   readonly inDefault: boolean;
+  /**
+   * Whether the part belongs to the AUDIO default composition (see `AUDIO_DEFAULT_COMPOSITION`).
+   * The audio skin renders a different default control set than video (audio has no
+   * Player/Poster/Timeline/Fullscreen/Cast and shows Title/Chapters by default), so it needs its
+   * own default flag rather than reusing `inDefault` (which is video-specific). Absent = not part
+   * of the audio default. Kept here so the audio default stays derived from the single catalog
+   * (A7), exactly like the video `inDefault` flag.
+   */
+  readonly inDefaultAudio?: boolean;
   /**
    * Container-placement restriction (Req 16). When present, this slot is ONLY valid as a direct
    * child of one of the listed containers; placing it inside any other container (or at the
@@ -368,13 +377,42 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
   { name: 'BottomBar', element: null, region: 'control-bar', order: 40, container: true, inDefault: true },
   { name: 'PrevButton', element: null, region: 'control-bar-left', order: 50, inDefault: false },
   { name: 'NextButton', element: null, region: 'control-bar-left', order: 65, inDefault: false },
-  { name: 'PlayButton', element: 'playerstack-play-button', region: 'control-bar-left', order: 60, inDefault: true },
-  { name: 'Volume', element: 'playerstack-volume', region: 'control-bar-left', order: 70, inDefault: true },
+  // `PlayButton`/`Volume` are shared by name across skins (A7). Both are in the video default AND
+  // the audio default, so they carry both flags. In audio, `PlayButton` renders inside the single
+  // `playerstack-audio-controls` (marker gating), while `Volume` maps to its own `playerstack-volume`.
+  {
+    name: 'PlayButton',
+    element: 'playerstack-play-button',
+    region: 'control-bar-left',
+    order: 60,
+    inDefault: true,
+    inDefaultAudio: true,
+  },
+  {
+    name: 'Volume',
+    element: 'playerstack-volume',
+    region: 'control-bar-left',
+    order: 70,
+    inDefault: true,
+    inDefaultAudio: true,
+  },
   { name: 'PlayTime', element: 'playerstack-play-time', region: 'control-bar-left', order: 80, inDefault: true },
   // `Title` maps to `playerstack-title`, the Custom Element added in task 9.1 (A2). Its binding
   // now exists in `UI_ELEMENT_BINDINGS` above, so `element` is the bound tag (Req 3.4: a non-null
   // tag MUST already be bound). It stays out of the default composition (`inDefault: false`).
-  { name: 'Title', element: 'playerstack-title', region: 'control-bar-left', order: 90, inDefault: false },
+  // `Title` stays OUT of the video default (`inDefault: false`) but IS in the audio default
+  // (`inDefaultAudio: true`): the audio-controls bar shows the title read-out by default. In audio
+  // it is a presence marker gating the title inside `playerstack-audio-controls`, so its catalog
+  // `element` (`playerstack-title`, the video tag) is not the audio DOM node — the audio layout
+  // gates by presence, not by this element.
+  {
+    name: 'Title',
+    element: 'playerstack-title',
+    region: 'control-bar-left',
+    order: 90,
+    inDefault: false,
+    inDefaultAudio: true,
+  },
   // Timeline + its riders (Chapters/Heatmap) render on the bottom-bar progress slider, so they
   // are ONLY valid inside `BottomBar` (Req 16). Placing them in `TopBar`/`SidebarLeft`/
   // `SidebarRight`/`CenterControls` throws at resolve time and is a TS error in the editor.
@@ -395,6 +433,12 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
     region: 'timeline',
     order: 101,
     inDefault: false,
+    // In audio, `Chapters` is the read-out INSIDE `playerstack-audio-controls` (not a timeline
+    // rider — audio has no timeline/BottomBar), so it belongs to the audio default. The
+    // `allowedContainers` restriction below is a VIDEO concern (timeline riders must live in
+    // `BottomBar`); the audio skin never uses BottomBar/`validateSlotPlacement`, so the restriction
+    // is inert for audio and does not affect the audio default membership.
+    inDefaultAudio: true,
     allowedContainers: ['BottomBar'],
   },
   {
@@ -407,7 +451,15 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
   },
   // `CaptionsToggle` is a skin-owned `<button>` (A2 promotion candidate: playerstack-captions-toggle).
   { name: 'CaptionsToggle', element: null, region: 'control-bar-right', order: 110, inDefault: true },
-  { name: 'Settings', element: 'playerstack-settings', region: 'control-bar-right', order: 120, inDefault: true },
+  // `Settings` is shared by name (A7) and is in BOTH defaults (speed menu + adMode in audio).
+  {
+    name: 'Settings',
+    element: 'playerstack-settings',
+    region: 'control-bar-right',
+    order: 120,
+    inDefault: true,
+    inDefaultAudio: true,
+  },
   // `Cast` is a skin-owned `<button>` (A2 promotion candidate: playerstack-cast-button).
   { name: 'Cast', element: null, region: 'control-bar-right', order: 130, inDefault: true },
   {
@@ -416,6 +468,33 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
     region: 'control-bar-right',
     order: 140,
     inDefault: true,
+  },
+  // ── Audio-only parts (Req 3.6/3.7) ──────────────────────────────────────────────────────────
+  // `AudioControls` maps to the ONE `playerstack-audio-controls` element (already bound in
+  // `UI_ELEMENT_BINDINGS`, Req 3.4) that hosts play/pause, skip, title, chapters read-out and the
+  // ad affordance for the audio skin. It is not a container (`container: false`): play/pause, skip,
+  // title and chapters are presence MARKERS that gate what this single element shows, not nested
+  // slots. Orders 200/205/215 sit far above every video index (≤140) so they never collide within
+  // their region (Req 3.7). All three belong to the audio default (`inDefaultAudio: true`).
+  {
+    name: 'AudioControls',
+    element: 'playerstack-audio-controls',
+    region: 'control-bar',
+    order: 200,
+    container: false,
+    inDefault: false,
+    inDefaultAudio: true,
+  },
+  // `SkipBack`/`SkipForward` are audio-exclusive presence markers (skip ∓10s inside
+  // `playerstack-audio-controls`), so they render no element of their own (`element: null`).
+  { name: 'SkipBack', element: null, region: 'control-bar-left', order: 205, inDefault: false, inDefaultAudio: true },
+  {
+    name: 'SkipForward',
+    element: null,
+    region: 'control-bar-left',
+    order: 215,
+    inDefault: false,
+    inDefaultAudio: true,
   },
 ];
 
@@ -428,6 +507,20 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
 export const DEFAULT_COMPOSITION: readonly string[] = COMPOSABLE_SLOTS.filter((slot) => slot.inDefault).map(
   (slot) => slot.name,
 );
+
+/**
+ * Audio default composition: the parts a bare `<AudioPlayer url=… />` renders (monolithic mode)
+ * — `[AudioControls, PlayButton, SkipBack, SkipForward, Title, Chapters, Volume, Settings]`
+ * (Req 3.8). Derived from the `inDefaultAudio` flag so the audio default stays sourced from the
+ * one catalog (A7), mirroring how `DEFAULT_COMPOSITION` derives from `inDefault` for video. Part
+ * names are unique, so the result has no duplicates. `PrevButton`/`NextButton` are NOT flagged, so
+ * nav is excluded from the default: it activates via `showNavButtons` (monolithic) or the presence
+ * of `PrevButton`/`NextButton` (composed) (Req 3.9). The array's order is the catalog order; the
+ * actual DOM order is always resolved through `resolveSlotOrder`, so membership is what matters.
+ */
+export const AUDIO_DEFAULT_COMPOSITION: readonly string[] = COMPOSABLE_SLOTS.filter(
+  (slot) => slot.inDefaultAudio === true,
+).map((slot) => slot.name);
 
 /**
  * Sorts a collection of part names by their canonical `order`, ascending (Req 3.6). Pure:

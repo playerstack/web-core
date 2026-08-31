@@ -4,6 +4,7 @@ import { join } from 'path';
 import fc from 'fast-check';
 
 import {
+  AUDIO_DEFAULT_COMPOSITION,
   COMPOSABLE_SLOTS,
   DEFAULT_COMPOSITION,
   domFrameworkAdapter,
@@ -234,6 +235,220 @@ describe('DEFAULT_COMPOSITION (Req 3.5)', () => {
 
   it('contains no duplicate names', () => {
     expect(new Set(DEFAULT_COMPOSITION).size).toBe(DEFAULT_COMPOSITION.length);
+  });
+});
+
+/**
+ * Tests for the AUDIO additions to the composable catalog (composable-audio-player-components
+ * spec, task 1.3 — Req 3.1, 3.4, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 11.1, 11.2).
+ *
+ * The audio skin reuses the SAME agnostic catalog (`COMPOSABLE_SLOTS`/`resolveSlotOrder`) and
+ * only extends it with the audio-exclusive parts (`AudioControls`, `SkipBack`, `SkipForward`)
+ * plus the `inDefaultAudio`-derived `AUDIO_DEFAULT_COMPOSITION`. These tests guard that the
+ * audio entries are well-formed, that their `order` indices never collide with any video entry,
+ * that the audio default is exactly the expected set (no duplicates, no nav), and that
+ * `resolveSlotOrder` behaves correctly for audio names — without touching the existing video
+ * assertions above.
+ */
+
+/** The audio-exclusive parts added to the catalog for the audio skin (Req 3.6). */
+const AUDIO_ONLY_NAMES = ['AudioControls', 'SkipBack', 'SkipForward'] as const;
+
+/** The full set of part names the audio skin composes with (exclusive + reused-by-name, Req 3.5). */
+const AUDIO_PART_NAMES = [
+  'AudioControls',
+  'PlayButton',
+  'SkipBack',
+  'SkipForward',
+  'Title',
+  'Chapters',
+  'PrevButton',
+  'NextButton',
+  'Volume',
+  'Settings',
+] as const;
+
+describe('COMPOSABLE_SLOTS — audio additions (Req 3.1, 3.4, 3.7)', () => {
+  const bindingTags = new Set(UI_ELEMENT_BINDINGS.map((binding) => binding.tagName));
+  const slotByName = new Map(COMPOSABLE_SLOTS.map((slot) => [slot.name, slot] as const));
+
+  it('defines the audio-exclusive parts AudioControls/SkipBack/SkipForward in the catalog (Req 3.1/3.6)', () => {
+    for (const name of AUDIO_ONLY_NAMES) {
+      expect(slotByName.has(name)).toBe(true);
+    }
+  });
+
+  it('backs AudioControls with playerstack-audio-controls (a bound tag) and skips with null (Req 3.4)', () => {
+    expect(slotByName.get('AudioControls')?.element).toBe('playerstack-audio-controls');
+    expect(bindingTags.has('playerstack-audio-controls')).toBe(true);
+    // Skip markers gate the single audio-controls element, so they render no element of their own.
+    expect(slotByName.get('SkipBack')?.element).toBeNull();
+    expect(slotByName.get('SkipForward')?.element).toBeNull();
+  });
+
+  it('gives every non-null audio entry element a tag present in UI_ELEMENT_BINDINGS (Req 3.4)', () => {
+    for (const name of AUDIO_ONLY_NAMES) {
+      const slot = slotByName.get(name);
+      const wellFormed = slot?.element === null || (typeof slot?.element === 'string' && bindingTags.has(slot.element));
+      expect({ name, wellFormed }).toEqual({ name, wellFormed: true });
+    }
+  });
+
+  it('marks AudioControls as a non-container part (Req 3.7)', () => {
+    // AudioControls hosts play/pause/skip/title/chapters as presence markers, not nested slots.
+    expect(Boolean(slotByName.get('AudioControls')?.container)).toBe(false);
+  });
+
+  it('flags exactly the audio-default parts with inDefaultAudio and no other part', () => {
+    const flagged = COMPOSABLE_SLOTS.filter((slot) => slot.inDefaultAudio === true)
+      .map((slot) => slot.name)
+      .sort();
+    const expected = ['AudioControls', 'PlayButton', 'SkipBack', 'SkipForward', 'Title', 'Chapters', 'Volume', 'Settings'].sort();
+
+    expect(flagged).toEqual(expected);
+  });
+
+  it('keeps every audio order index unique and free of collision with any video entry (Req 3.7)', () => {
+    // Audio-exclusive orders must be unique among themselves...
+    const audioOrders = AUDIO_ONLY_NAMES.map((name) => slotByName.get(name)?.order);
+    expect(new Set(audioOrders).size).toBe(audioOrders.length);
+
+    // ...and must not collide with any video (non-audio-exclusive) entry sharing the same region.
+    for (const name of AUDIO_ONLY_NAMES) {
+      const audioSlot = slotByName.get(name);
+      expect(audioSlot).toBeDefined();
+      const collisions = COMPOSABLE_SLOTS.filter(
+        (slot) =>
+          !AUDIO_ONLY_NAMES.includes(slot.name as (typeof AUDIO_ONLY_NAMES)[number]) &&
+          slot.region === audioSlot?.region &&
+          slot.order === audioSlot?.order,
+      );
+      expect({ name, collisions: collisions.map((s) => s.name) }).toEqual({ name, collisions: [] });
+    }
+  });
+});
+
+describe('AUDIO_DEFAULT_COMPOSITION (Req 3.8, 3.9)', () => {
+  it('equals exactly the names of parts flagged inDefaultAudio, preserving catalog order', () => {
+    const expected = COMPOSABLE_SLOTS.filter((slot) => slot.inDefaultAudio === true).map((slot) => slot.name);
+
+    expect([...AUDIO_DEFAULT_COMPOSITION]).toEqual(expected);
+  });
+
+  it('contains exactly the expected audio default parts (Req 3.8)', () => {
+    // Membership (order-independent): AudioControls + PlayButton + Skip* + Title + Chapters + Volume + Settings.
+    expect([...AUDIO_DEFAULT_COMPOSITION].sort()).toEqual(
+      ['AudioControls', 'PlayButton', 'SkipBack', 'SkipForward', 'Title', 'Chapters', 'Volume', 'Settings'].sort(),
+    );
+  });
+
+  it('includes a part if and only if its inDefaultAudio flag is true', () => {
+    for (const slot of COMPOSABLE_SLOTS) {
+      expect(AUDIO_DEFAULT_COMPOSITION.includes(slot.name)).toBe(slot.inDefaultAudio === true);
+    }
+  });
+
+  it('contains no duplicate names', () => {
+    expect(new Set(AUDIO_DEFAULT_COMPOSITION).size).toBe(AUDIO_DEFAULT_COMPOSITION.length);
+  });
+
+  it('excludes nav (PrevButton/NextButton) from the audio default (Req 3.9)', () => {
+    expect(AUDIO_DEFAULT_COMPOSITION.includes('PrevButton')).toBe(false);
+    expect(AUDIO_DEFAULT_COMPOSITION.includes('NextButton')).toBe(false);
+  });
+});
+
+describe('resolveSlotOrder — audio part names (Req 3.10, 3.11, 3.12)', () => {
+  /** Audio part names in canonical ascending order, derived from the catalog (not declaration order). */
+  const AUDIO_CANONICAL_ORDER: readonly string[] = [...COMPOSABLE_SLOTS]
+    .filter((slot) => AUDIO_PART_NAMES.includes(slot.name as (typeof AUDIO_PART_NAMES)[number]))
+    .sort((a, b) => a.order - b.order)
+    .map((slot) => slot.name);
+
+  describe('examples', () => {
+    it('sorts audio names ascending by canonical order (Req 3.10)', () => {
+      // Canonical order indices: PlayButton(60) < Settings(120) < AudioControls(200) < SkipBack(205)
+      // < SkipForward(215). resolveSlotOrder is global-ascending (it does not group by region), so
+      // Settings(120) precedes AudioControls(200) even though they live in different regions.
+      expect(resolveSlotOrder(['Settings', 'AudioControls', 'PlayButton', 'SkipForward', 'SkipBack'])).toEqual([
+        'PlayButton',
+        'Settings',
+        'AudioControls',
+        'SkipBack',
+        'SkipForward',
+      ]);
+    });
+
+    it('produces the same result regardless of input order (Req 3.10)', () => {
+      const forward = ['AudioControls', 'PlayButton', 'SkipBack', 'SkipForward', 'Volume', 'Settings'];
+      const reversed = [...forward].reverse();
+
+      expect(resolveSlotOrder(reversed)).toEqual(resolveSlotOrder(forward));
+    });
+
+    it('excludes unknown names from a mixed audio input (Req 3.11)', () => {
+      expect(resolveSlotOrder(['SkipForward', 'not-a-part', 'AudioControls', 'PlayButton', 'zzz'])).toEqual([
+        'PlayButton',
+        'AudioControls',
+        'SkipForward',
+      ]);
+    });
+
+    it('returns an empty array for empty input and for all-unknown input (Req 3.12)', () => {
+      expect(resolveSlotOrder([])).toEqual([]);
+      expect(resolveSlotOrder(['skip-back', 'AUDIOCONTROLS'])).toEqual([]);
+    });
+
+    it('does not mutate the input array and returns a new array instance (Req 3.10)', () => {
+      const input = ['SkipForward', 'AudioControls', 'SkipBack'];
+      const snapshot = [...input];
+      const result = resolveSlotOrder(input);
+
+      expect(input).toEqual(snapshot);
+      expect(result).not.toBe(input);
+    });
+  });
+
+  describe('properties (fast-check) — audio canonical order', () => {
+    const permutationOfAudioNames = fc.uniqueArray(fc.constantFrom(...AUDIO_PART_NAMES));
+    const unknownName = fc.string().map((suffix) => `\u0000${suffix}`);
+
+    it('returns audio names in canonical ascending order independent of input order, without mutating input (Req 3.10)', () => {
+      // Validates: Requirements 3.10
+      fc.assert(
+        fc.property(permutationOfAudioNames, (names) => {
+          const before = [...names];
+          const expected = AUDIO_CANONICAL_ORDER.filter((name) => before.includes(name));
+
+          const result = resolveSlotOrder(names);
+
+          expect(result).toEqual(expected);
+          expect(resolveSlotOrder([...before].reverse())).toEqual(expected);
+          expect(names).toEqual(before);
+          expect(result).not.toBe(names);
+        }),
+      );
+    });
+
+    it('excludes unknown names and keeps known audio names in canonical order (Req 3.11, 3.12)', () => {
+      // Validates: Requirements 3.11, 3.12
+      fc.assert(
+        fc.property(permutationOfAudioNames, fc.array(unknownName), (knownNames, unknownNames) => {
+          const knownSet = new Set(knownNames);
+          const input = [...knownNames, ...unknownNames];
+          const before = [...input];
+          const expected = AUDIO_CANONICAL_ORDER.filter((name) => knownSet.has(name));
+
+          const result = resolveSlotOrder(input);
+
+          expect(result).toEqual(expected);
+          for (const name of result) {
+            expect(knownSet.has(name)).toBe(true);
+          }
+          expect(input).toEqual(before);
+        }),
+      );
+    });
   });
 });
 

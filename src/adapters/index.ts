@@ -15,6 +15,7 @@ export { domFrameworkAdapter, UI_ELEMENT_BINDINGS } from '@adapters/framework-ad
 export {
   COMPOSABLE_SLOTS,
   DEFAULT_COMPOSITION,
+  AUDIO_DEFAULT_COMPOSITION,
   resolveSlotOrder,
   validateSlotPlacement,
 } from '@adapters/framework-adapter';
