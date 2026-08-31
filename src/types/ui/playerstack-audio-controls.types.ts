@@ -29,6 +29,8 @@ import type { AdsConfig } from '@typings/adapters.types';
  */
 export type AudioControlsPart =
   | 'audio-controls'
+  | 'prev-button'
+  | 'next-button'
   | 'skip-back-button'
   | 'skip-forward-button'
   | 'play-button'

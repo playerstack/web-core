@@ -18,6 +18,7 @@ export {
   AUDIO_DEFAULT_COMPOSITION,
   resolveSlotOrder,
   validateSlotPlacement,
+  acceptsKeepVisible,
 } from '@adapters/framework-adapter';
 
 // Public types.

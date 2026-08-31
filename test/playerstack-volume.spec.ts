@@ -246,6 +246,28 @@ describe('playerstack-volume', () => {
       expect(el.getAttribute('data-orientation')).toBe('vertical');
     });
 
+    // Regression: flipping `orientation` AT RUNTIME (after connect) must re-lay-out the slider.
+    // `orientation` is observed but its effect lives in `updateFill()`, which used to run only on
+    // a store change — so a dynamic flip (e.g. a composed `<Volume orientation>` re-render) left
+    // `data-orientation` stale until an unrelated state change. `onAttributeChanged` now re-applies
+    // it immediately.
+    it('re-reflects data-orientation when the orientation attribute changes at runtime', () => {
+      const host = document.createElement('playerstack-media-controller') as PlayerstackMediaController;
+      document.body.appendChild(host);
+      const el = document.createElement('playerstack-volume');
+      host.appendChild(el);
+      // Mounted horizontal (no orientation attr) → no data-orientation.
+      expect(el.getAttribute('data-orientation')).toBeNull();
+
+      // Flip to vertical after connect (no store change in between).
+      el.setAttribute('orientation', 'vertical');
+      expect(el.getAttribute('data-orientation')).toBe('vertical');
+
+      // Flip back to horizontal → the hook is removed again.
+      el.setAttribute('orientation', 'horizontal');
+      expect(el.getAttribute('data-orientation')).toBeNull();
+    });
+
     it('maps the pointer Y to volume inverted (clientY near the bottom → low, near the top → high)', () => {
       const { el } = mountVertical();
       const slider = el.querySelector('[part="slider"]') as HTMLElement;

@@ -4,6 +4,7 @@ import { join } from 'path';
 import fc from 'fast-check';
 
 import {
+  acceptsKeepVisible,
   AUDIO_DEFAULT_COMPOSITION,
   COMPOSABLE_SLOTS,
   DEFAULT_COMPOSITION,
@@ -252,7 +253,7 @@ describe('DEFAULT_COMPOSITION (Req 3.5)', () => {
  */
 
 /** The audio-exclusive parts added to the catalog for the audio skin (Req 3.6). */
-const AUDIO_ONLY_NAMES = ['AudioControls', 'SkipBack', 'SkipForward'] as const;
+const AUDIO_ONLY_NAMES = ['AudioControls', 'SkipBack', 'SkipForward', 'Time'] as const;
 
 /** The full set of part names the audio skin composes with (exclusive + reused-by-name, Req 3.5). */
 const AUDIO_PART_NAMES = [
@@ -303,7 +304,17 @@ describe('COMPOSABLE_SLOTS — audio additions (Req 3.1, 3.4, 3.7)', () => {
     const flagged = COMPOSABLE_SLOTS.filter((slot) => slot.inDefaultAudio === true)
       .map((slot) => slot.name)
       .sort();
-    const expected = ['AudioControls', 'PlayButton', 'SkipBack', 'SkipForward', 'Title', 'Chapters', 'Volume', 'Settings'].sort();
+    const expected = [
+      'AudioControls',
+      'PlayButton',
+      'SkipBack',
+      'SkipForward',
+      'Title',
+      'Chapters',
+      'Time',
+      'Volume',
+      'Settings',
+    ].sort();
 
     expect(flagged).toEqual(expected);
   });
@@ -336,9 +347,10 @@ describe('AUDIO_DEFAULT_COMPOSITION (Req 3.8, 3.9)', () => {
   });
 
   it('contains exactly the expected audio default parts (Req 3.8)', () => {
-    // Membership (order-independent): AudioControls + PlayButton + Skip* + Title + Chapters + Volume + Settings.
+    // Membership (order-independent): AudioControls + PlayButton + Skip* + Title + Chapters + Time
+    // + Volume + Settings.
     expect([...AUDIO_DEFAULT_COMPOSITION].sort()).toEqual(
-      ['AudioControls', 'PlayButton', 'SkipBack', 'SkipForward', 'Title', 'Chapters', 'Volume', 'Settings'].sort(),
+      ['AudioControls', 'PlayButton', 'SkipBack', 'SkipForward', 'Title', 'Chapters', 'Time', 'Volume', 'Settings'].sort(),
     );
   });
 
@@ -624,5 +636,45 @@ describe('validateSlotPlacement — container-placement restriction (Req 16)', (
         },
       ),
     );
+  });
+});
+
+/**
+ * Tests for the timeline-rider `keepVisible` opt-out (`ridesTimeline` + `acceptsKeepVisible`).
+ *
+ * `Chapters`/`Heatmap` ride the `Timeline` slider (they paint via props on
+ * `playerstack-time-slider` and own no element of their own), so their visibility follows the
+ * Timeline's keep-visible and they do NOT accept an independent `keepVisible`. The catalog flags
+ * them with `ridesTimeline: true` and the pure `acceptsKeepVisible` reads that flag — the single
+ * source of truth every skin resolver enforces (A6/A7).
+ */
+describe('ridesTimeline flag + acceptsKeepVisible (timeline-rider keepVisible opt-out)', () => {
+  const slotByName = new Map(COMPOSABLE_SLOTS.map((slot) => [slot.name, slot] as const));
+
+  it('flags Chapters and Heatmap as timeline riders, but NOT Timeline itself', () => {
+    expect(slotByName.get('Chapters')?.ridesTimeline).toBe(true);
+    expect(slotByName.get('Heatmap')?.ridesTimeline).toBe(true);
+    // Timeline IS the host slider — it must NOT be flagged (it accepts keepVisible).
+    expect(Boolean(slotByName.get('Timeline')?.ridesTimeline)).toBe(false);
+  });
+
+  it('rejects keepVisible for the timeline riders (Chapters/Heatmap)', () => {
+    expect(acceptsKeepVisible('Chapters')).toBe(false);
+    expect(acceptsKeepVisible('Heatmap')).toBe(false);
+  });
+
+  it('accepts keepVisible for Timeline (the host slider) and other regular parts', () => {
+    expect(acceptsKeepVisible('Timeline')).toBe(true);
+    expect(acceptsKeepVisible('Volume')).toBe(true);
+  });
+
+  it('defaults to accepting keepVisible for unknown part names (permissive)', () => {
+    expect(acceptsKeepVisible('SomeUnknown')).toBe(true);
+  });
+
+  it('returns false iff the slot is flagged ridesTimeline (consistent with the catalog)', () => {
+    for (const slot of COMPOSABLE_SLOTS) {
+      expect(acceptsKeepVisible(slot.name)).toBe(slot.ridesTimeline !== true);
+    }
   });
 });

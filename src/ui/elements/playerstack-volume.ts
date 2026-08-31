@@ -128,6 +128,22 @@ export class PlayerstackVolume extends PlayerstackElement {
   }
 
   /**
+   * React to changes of the `orientation` / `fill-origin` attributes AT RUNTIME. Both are observed
+   * (declared in `attributeSchema`) but their effect — the reflected `data-orientation` /
+   * `data-fill-origin` hooks and the axis-dependent fill/thumb geometry — is applied inside
+   * `updateFill()`, which otherwise only runs on a store change. Without this, flipping the axis
+   * (e.g. `<Volume orientation="vertical">`) after the element mounted did NOT re-lay-out the
+   * slider until some unrelated store change happened. Re-running `updateFill()` here makes the
+   * element reactive to these presentation attributes. `label` (aria-label) needs no re-layout.
+   */
+  protected override onAttributeChanged(propKey: string, _value: string | number | boolean): void {
+    if (propKey === 'orientation' || propKey === 'fillOrigin') {
+      this.updateFill();
+      this.refreshTooltip();
+    }
+  }
+
+  /**
    * Sets the `track-fill` width to the EFFECTIVE volume as a percentage (Req 1.6, 3.3). When
    * muted the effective volume is 0 so the slider empties to the left — matching the original
    * `effectiveVolume = isMuted ? 0 : volume` (the muted class only DIMMED the fill; the fill

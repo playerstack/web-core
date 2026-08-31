@@ -1,7 +1,13 @@
 import type { IconDescriptor } from '@typings/icons.types';
 
 export const nextTrackIcon: IconDescriptor = {
-  viewBox: '0 0 36 36',
+  // The glyph artwork occupies only x 12.75–23.25 / y 12–24 of a 36×36 canvas, so a full `0 0 36
+  // 36` viewBox renders it too small next to the other transport glyphs. Cropping the viewBox to a
+  // centered `6 6 24 24` window sizes the glyph to ~50% of its box. The skip glyphs measure taller
+  // in raw px, but their circle-with-arrow artwork is airy/detailed, so the SOLID prev/next glyph
+  // reads heavier at equal height — this slightly smaller crop matches them by VISUAL weight
+  // (a source-of-truth fix on the icon itself, no per-skin CSS scaling).
+  viewBox: '6 6 24 24',
   fill: 'currentColor',
   elements: [
     {

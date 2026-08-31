@@ -116,6 +116,115 @@ describe('playerstack-audio-controls', () => {
 
       expect(el.querySelectorAll('[part="chapter-segment"]').length).toBe(2);
     });
+
+    it('renders an EMPTY label (no dangling "Play:" prefix) when there is no title and no active chapter', () => {
+      const { host, el } = mount();
+      // No title, no chapters, not an ad: nothing to say → the label must be fully empty.
+      host.store.set({ playing: false, seek: 0, duration: 100 });
+
+      const label = el.querySelector('[part="media-label"]') as HTMLElement;
+      expect(label.textContent).toBe('');
+      expect(label.querySelector('[part="media-label-prefix"]')).toBeNull();
+    });
+
+    it('hides the remaining-time read-out when showTime is false (Time composable absent)', () => {
+      const { host, el } = mount();
+      el.showTime = false;
+      host.store.set({ playing: true, seek: 25, duration: 100 });
+
+      // Absent `Time` marker ⇒ the read-out is REMOVED from the DOM (not merely hidden).
+      expect(el.querySelector('[part="time"]')).toBeNull();
+
+      // Re-enabling re-inserts the read-out as the LAST child of the bar, with the remaining-time.
+      el.showTime = true;
+      const bar = el.querySelector('[part="audio-controls"]') as HTMLElement;
+      const time = el.querySelector('[part="time"]') as HTMLElement;
+      expect(time).not.toBeNull();
+      expect(bar.lastElementChild).toBe(time);
+      expect(time.textContent).toBe(`-${formatTime(75)}`);
+    });
+
+    it('removes each ±10s skip button from the DOM when its presence marker is absent, re-inserting it in canonical order', () => {
+      const { el } = mount();
+      const bar = el.querySelector('[part="audio-controls"]') as HTMLElement;
+      const partsOrder = () => [...bar.children].map((c) => c.getAttribute('part'));
+
+      // Default: both present, canonical order skip-back → play → skip-forward → content-area → time.
+      expect(partsOrder()).toEqual([
+        'skip-back-button',
+        'play-button',
+        'skip-forward-button',
+        'content-area',
+        'time',
+      ]);
+
+      // Absent markers ⇒ the buttons are REMOVED from the DOM (independently).
+      el.showSkipBack = false;
+      expect(el.querySelector('[part="skip-back-button"]')).toBeNull();
+      expect(el.querySelector('[part="skip-forward-button"]')).not.toBeNull();
+
+      el.showSkipForward = false;
+      expect(el.querySelector('[part="skip-forward-button"]')).toBeNull();
+      expect(partsOrder()).toEqual(['play-button', 'content-area', 'time']);
+
+      // Re-adding the markers re-inserts each button at its canonical position.
+      el.showSkipBack = true;
+      el.showSkipForward = true;
+      expect(partsOrder()).toEqual([
+        'skip-back-button',
+        'play-button',
+        'skip-forward-button',
+        'content-area',
+        'time',
+      ]);
+    });
+
+    it('places the prev/next buttons next to the skip buttons (prev → skip-back → play → skip-forward → next)', () => {
+      const { el } = mount();
+      const bar = el.querySelector('[part="audio-controls"]') as HTMLElement;
+      const partsOrder = () => [...bar.children].map((c) => c.getAttribute('part'));
+
+      // Nav is opt-in: absent by default (no prev/next node in the DOM).
+      expect(el.querySelector('[part="prev-button"]')).toBeNull();
+      expect(el.querySelector('[part="next-button"]')).toBeNull();
+
+      // Enabling nav inserts prev at the LEFT edge (next to skip-back) and next after skip-forward.
+      el.showPrev = true;
+      el.showNext = true;
+      expect(partsOrder()).toEqual([
+        'prev-button',
+        'skip-back-button',
+        'play-button',
+        'skip-forward-button',
+        'next-button',
+        'content-area',
+        'time',
+      ]);
+
+      // Disabling nav removes both from the DOM (no persistent hidden node).
+      el.showPrev = false;
+      el.showNext = false;
+      expect(el.querySelector('[part="prev-button"]')).toBeNull();
+      expect(el.querySelector('[part="next-button"]')).toBeNull();
+      expect(partsOrder()).toEqual(['skip-back-button', 'play-button', 'skip-forward-button', 'content-area', 'time']);
+    });
+
+    it('emits prev/next requests from the nav buttons', () => {
+      const { el } = mount();
+      el.showPrev = true;
+      el.showNext = true;
+
+      const prevEvents: Event[] = [];
+      const nextEvents: Event[] = [];
+      el.addEventListener('playerstack-prev-request', (e) => prevEvents.push(e));
+      el.addEventListener('playerstack-next-request', (e) => nextEvents.push(e));
+
+      (el.querySelector('[part="prev-button"]') as HTMLButtonElement).click();
+      (el.querySelector('[part="next-button"]') as HTMLButtonElement).click();
+
+      expect(prevEvents).toHaveLength(1);
+      expect(nextEvents).toHaveLength(1);
+    });
   });
 
   describe('chapter hover (parity with original hoveredSegmentIndex)', () => {

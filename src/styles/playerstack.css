@@ -556,7 +556,6 @@ playerstack-media-controller[data-ad-active][data-hiding] playerstack-time-slide
   flex-direction: row;
   align-items: center;
   white-space: nowrap;
-  overflow: hidden;
 }
 
 .playerstack-controls-left {
@@ -564,11 +563,28 @@ playerstack-media-controller[data-ad-active][data-hiding] playerstack-time-slide
   min-width: 0;
   justify-content: flex-start;
   margin-left: 15px;
+  /* Clip ONLY on the X axis, keep the Y axis visible.
+     WHY X-only: the left cluster grows into the free space and must crop a long title at the right
+     cluster's edge (a horizontal overflow) — that clip stays. But some left-cluster controls open
+     UPWARD out of the 36px bar strip (the vertical `<Volume orientation="vertical">` column floats
+     above the mute button via `bottom: 100%`). A plain `overflow: hidden` clips BOTH axes, so it
+     also cropped that upward column — the slider "disappeared". `overflow-x: clip` keeps the exact
+     horizontal crop; `overflow-y: visible` lets the vertical column escape above the bar.
+     WHY `clip` not `hidden` on X: with mixed axes, `overflow-x: hidden; overflow-y: visible`
+     forces the visible axis to compute as `auto` (spec rule), which would add an unwanted scroll
+     container. `overflow-x: clip` has no such coercion — it clips X without turning the element
+     into a scroll container, so `overflow-y: visible` stays truly visible. Clipping lives on the
+     LEFT cluster only; the RIGHT cluster stays fully `overflow: visible` (its Settings dropdown
+     opens upward too). */
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .playerstack-controls-right {
   /* Content-sized + pinned to the right edge, so it never claims the empty half of the bar. The
-     left cluster grows into whatever space this one leaves. */
+     left cluster grows into whatever space this one leaves. NO `overflow: hidden`: this cluster is
+     content-sized (`flex: 0 0 auto`) so it has nothing of its own to clip, and clipping here would
+     crop the upward-opening settings dropdown that lives inside it. */
   flex: 0 0 auto;
   justify-content: flex-end;
   margin-right: 15px;
@@ -3090,6 +3106,15 @@ playerstack-media-controller[data-skin-mode='mobile'][data-hiding] [part='ad-ban
   opacity: 1;
 }
 
+/* Connected cast session reads at full opacity (parity with the original `castState === 'connected'
+   ? 1 : 0.8`). Driven by the reflected `data-cast-state` attribute rather than an INLINE style, so
+   the auto-hide fade (`[data-hiding] … :not([data-keep-visible]) { opacity: 0 }`) can still win —
+   an inline `opacity` used to override that fade, leaving the cast button visible after the rest of
+   the bar faded when another control was `keepVisible`. */
+[part='cast-button'][data-cast-state='connected'] {
+  opacity: 1;
+}
+
 /* Active captions: keep the CC glyph fully bright (the active icon already differs). */
 [part='captions-button'][data-active='true'] {
   opacity: 1;
@@ -4700,7 +4725,9 @@ playerstack-media-controller[data-skin='audio'] [part='audio-controls'] {
    36px min-width. The skip buttons take their 36px from the reveal rule's `max-width`. */
 playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='play-button'],
 playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-back-button'],
-playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button'] {
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button'],
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='prev-button'],
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='next-button'] {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4722,14 +4749,18 @@ playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='p
 
 playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='play-button']:hover,
 playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-back-button']:hover,
-playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button']:hover {
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button']:hover,
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='prev-button']:hover,
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='next-button']:hover {
   opacity: 1;
   background: transparent;
 }
 
 playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='play-button']:focus-visible,
 playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-back-button']:focus-visible,
-playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button']:focus-visible {
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='skip-forward-button']:focus-visible,
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='prev-button']:focus-visible,
+playerstack-media-controller[data-skin='audio'] [part='audio-controls'] [part='next-button']:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
@@ -4752,6 +4783,8 @@ playerstack-media-controller[data-skin='audio'] [part='audio-controls'] .icon-sk
   height: 24px;
 }
 
+
+
 /* Skip buttons expand from 0 width only while PLAYING (StyledSkipButtonWrapper
    `$visible`), and are hidden entirely during ads. `data-playing`/`data-ad-active`
    are reflected on the audio-controls host. All three rules are scoped under the SAME
@@ -4759,7 +4792,9 @@ playerstack-media-controller[data-skin='audio'] [part='audio-controls'] .icon-sk
    ancestor chain so the reveal/hide rules have EQUAL-OR-HIGHER specificity than the
    collapsed default and actually win (source order then breaks ties). */
 playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='skip-back-button'],
-playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='skip-forward-button'] {
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='skip-forward-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='prev-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part='next-button'] {
   overflow: hidden;
   /* `min-width:0` is essential: without it the base 36px `min-width` would defeat
      `max-width:0` and the buttons would never collapse (min-width wins over max-width). */
@@ -4775,7 +4810,9 @@ playerstack-media-controller[data-skin='audio'] playerstack-audio-controls [part
 }
 
 playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='skip-back-button'],
-playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='skip-forward-button'] {
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='skip-forward-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='prev-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-playing] [part='next-button'] {
   max-width: 36px;
   opacity: 0.8;
   transform: scale(1);
@@ -4788,7 +4825,9 @@ playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-
 }
 
 playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='skip-back-button'],
-playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='skip-forward-button'] {
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='skip-forward-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='prev-button'],
+playerstack-media-controller[data-skin='audio'] playerstack-audio-controls[data-ad-active] [part='next-button'] {
   max-width: 0;
   opacity: 0;
   transform: scale(0.5);

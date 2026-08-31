@@ -52,6 +52,8 @@ import {
   skipBackIcon,
   skipForwardIcon,
   skipAdIcon,
+  previousTrackIcon,
+  nextTrackIcon,
 } from '@icons/index';
 
 /** Default accessible name used when no `aria-label` attribute is provided (Req 1.5). */
@@ -86,6 +88,33 @@ export class PlayerstackAudioControls extends PlayerstackElement {
   /** Track title supplied via the `title` property; shown in the paused label. */
   private trackTitle = '';
 
+  /**
+   * Whether the remaining-time read-out (`part="time"`) is present. The `Time` composable is a
+   * presence marker: when the author omits it, the skin sets `showTime = false` and this element
+   * REMOVES the `part="time"` span from the DOM (re-inserting it when the marker returns).
+   * Defaults to `true` so the monolithic/default bar keeps its time read-out.
+   */
+  private showTimeReadout = true;
+
+  /**
+   * Whether each ±10s skip button is present. `SkipBack`/`SkipForward` are presence markers: when
+   * the author omits one, the skin sets the matching flag `false` and this element REMOVES that
+   * button from the DOM (re-inserting it at its canonical position when the marker returns). Both
+   * default to `true` so the monolithic/default bar keeps both skip buttons.
+   */
+  private showSkipBackButton = true;
+  private showSkipForwardButton = true;
+
+  /**
+   * Whether each playlist-nav button is present. `PrevButton`/`NextButton` are OPT-IN (nav is not
+   * in the audio default): the skin sets these `true` when the consumer enables navigation
+   * (`showNavButtons` monolithic, or a composed `<PrevButton>`/`<NextButton>`). When shown, `prev`
+   * sits at the LEFT edge (next to skip-back) and `next` right after skip-forward. Both default to
+   * `false` so a bare bar has no nav buttons (byte-identical to before).
+   */
+  private showPrevButton = false;
+  private showNextButton = false;
+
   /** Ad config supplied via the `ads` property; drives ad-mode (skip button + countdown). */
   private adsConfig: AudioControlsAds = null;
 
@@ -95,6 +124,10 @@ export class PlayerstackAudioControls extends PlayerstackElement {
   /** Rendered nodes kept so `render` stays idempotent and `onStoreChange` can repaint them. */
   private container: HTMLElement | null = null;
   private button: HTMLButtonElement | null = null;
+  private prevButton: HTMLButtonElement | null = null;
+  private nextButton: HTMLButtonElement | null = null;
+  private skipBackButton: HTMLButtonElement | null = null;
+  private skipForwardButton: HTMLButtonElement | null = null;
   private iconPlay: HTMLElement | null = null;
   private iconPause: HTMLElement | null = null;
   private iconReplay: HTMLElement | null = null;
@@ -213,6 +246,72 @@ export class PlayerstackAudioControls extends PlayerstackElement {
     return this.trackTitle;
   }
 
+  /**
+   * Toggles the remaining-time read-out (`part="time"`). Driven by the `Time` presence marker in
+   * the skin: present ⇒ node in the DOM, absent ⇒ node removed. Coerces a missing/undefined value
+   * to `true` so the default bar keeps the read-out.
+   */
+  set showTime(value: boolean | null) {
+    this.showTimeReadout = value !== false;
+    this.updateTime();
+  }
+
+  get showTime(): boolean {
+    return this.showTimeReadout;
+  }
+
+  /**
+   * Toggles the skip-back (−10s) button. Driven by the `SkipBack` presence marker: present ⇒
+   * node in the DOM, absent ⇒ node removed. Coerces a missing/undefined value to `true`.
+   */
+  set showSkipBack(value: boolean | null) {
+    this.showSkipBackButton = value !== false;
+    this.updateSkipVisibility();
+  }
+
+  get showSkipBack(): boolean {
+    return this.showSkipBackButton;
+  }
+
+  /**
+   * Toggles the skip-forward (+10s) button. Driven by the `SkipForward` presence marker: present ⇒
+   * node in the DOM, absent ⇒ node removed. Coerces a missing/undefined value to `true`.
+   */
+  set showSkipForward(value: boolean | null) {
+    this.showSkipForwardButton = value !== false;
+    this.updateSkipVisibility();
+  }
+
+  get showSkipForward(): boolean {
+    return this.showSkipForwardButton;
+  }
+
+  /**
+   * Toggles the previous-track button (LEFT edge, next to skip-back). Driven by the skin's
+   * nav enablement: present ⇒ node in the DOM, absent ⇒ node removed. Defaults to `false`.
+   */
+  set showPrev(value: boolean | null) {
+    this.showPrevButton = value === true;
+    this.updateNavVisibility();
+  }
+
+  get showPrev(): boolean {
+    return this.showPrevButton;
+  }
+
+  /**
+   * Toggles the next-track button (right after skip-forward). Driven by the skin's nav
+   * enablement: present ⇒ node in the DOM, absent ⇒ node removed. Defaults to `false`.
+   */
+  set showNext(value: boolean | null) {
+    this.showNextButton = value === true;
+    this.updateNavVisibility();
+  }
+
+  get showNext(): boolean {
+    return this.showNextButton;
+  }
+
   /** Ad config → drive ad-mode; assigning null exits ad mode and resets activation. */
   set ads(value: AudioControlsAds) {
     this.adsConfig = value ?? null;
@@ -247,9 +346,84 @@ export class PlayerstackAudioControls extends PlayerstackElement {
    */
   private updateTime(): void {
     if (this.timeSpan === null) return;
+    // `Time` composable absent ⇒ REMOVE the read-out from the DOM (not merely hidden), so a retired
+    // control leaves no persistent node. When present, re-insert it at its canonical position (the
+    // last child of the bar) before repainting the remaining-time text.
+    if (!this.showTimeReadout) {
+      this.timeSpan.remove();
+      return;
+    }
+    if (this.container !== null && !this.timeSpan.isConnected) {
+      this.container.appendChild(this.timeSpan);
+    }
     const { seek, duration } = this.audioState;
     const remaining = duration > 0 ? Math.max(0, duration - seek) : 0;
     this.timeSpan.textContent = duration > 0 && remaining > 0 ? `-${formatTime(remaining)}` : '0:00';
+  }
+
+  /**
+   * Reflects the skip-button presence markers onto the DOM by ADDING/REMOVING the button node —
+   * an absent `SkipBack`/`SkipForward` composable is REMOVED from the DOM entirely (not merely
+   * hidden), so a retired control leaves no persistent node. Re-adding a marker re-inserts the
+   * button at its canonical position in the row (`skip-back → play → skip-forward → content-area
+   * → time`): skip-back as the first child, skip-forward right after the play button.
+   *
+   * The button nodes are kept as fields (created once in `render`), so toggling only moves them in
+   * and out of the tree — their wired listeners survive. No-ops before `render` (container null).
+   */
+  private updateSkipVisibility(): void {
+    this.syncTransportOrder();
+  }
+
+  /**
+   * Reflects the nav-button presence markers onto the DOM (prev at the LEFT edge next to skip-back,
+   * next right after skip-forward). Delegates to the shared transport re-sync so the whole cluster
+   * stays in canonical order (`prev → skip-back → play → skip-forward → next`) regardless of which
+   * buttons are toggled. No-ops before `render` (container null).
+   */
+  private updateNavVisibility(): void {
+    this.syncTransportOrder();
+  }
+
+  /**
+   * Re-syncs the transport cluster to its canonical order and presence: for each of
+   * `prev → skip-back → play → skip-forward → next`, an absent (unshown) button is REMOVED from the
+   * DOM (not hidden — a retired control leaves no persistent node) and a shown one is (re)inserted
+   * at its canonical slot, ahead of `content-area`. `play` is always present and is the ordering
+   * anchor. Idempotent and safe to call repeatedly; no-ops before `render`.
+   */
+  private syncTransportOrder(): void {
+    if (this.container === null || this.button === null) return;
+    // The play button is the fixed anchor; walk outward inserting before/after it in order.
+    // Left side: each button is inserted just before the play button, so the LAST inserted ends up
+    // adjacent to play. To yield `prev → skip-back → play`, insert prev first, then skip-back.
+    const leftInOrder: Array<[HTMLButtonElement | null, boolean]> = [
+      [this.prevButton, this.showPrevButton],
+      [this.skipBackButton, this.showSkipBackButton],
+    ];
+    for (const [node, show] of leftInOrder) {
+      if (node === null) continue;
+      if (show) {
+        this.container.insertBefore(node, this.button);
+      } else {
+        node.remove();
+      }
+    }
+    // Right side (in DOM order): skip-forward, next — each inserted just after the play button so
+    // the last one inserted ends up adjacent to play; insert next first, then skip-forward, to
+    // yield `play → skip-forward → next`.
+    const rightInOrder: Array<[HTMLButtonElement | null, boolean]> = [
+      [this.nextButton, this.showNextButton],
+      [this.skipForwardButton, this.showSkipForwardButton],
+    ];
+    for (const [node, show] of rightInOrder) {
+      if (node === null) continue;
+      if (show) {
+        this.container.insertBefore(node, this.button.nextSibling);
+      } else {
+        node.remove();
+      }
+    }
   }
 
   /**
@@ -279,8 +453,16 @@ export class PlayerstackAudioControls extends PlayerstackElement {
       labelText = `${this.trackTitle}${chapterSuffix}`;
     }
 
-    // The prefix span is styled dimmer (`media-label-prefix`); the rest is plain text.
+    // UX: when there is NOTHING to say (no ad, no title, no active chapter) the label must be
+    // fully empty — no dangling "Play:"/"Replay:" prefix over blank content. `labelText` is empty
+    // outside ad mode exactly when the title is empty AND no chapter is active, so an empty
+    // `labelText` and no ad ⇒ render nothing (the prefix is a lead-in to content that isn't there).
     this.mediaLabel.textContent = '';
+    if (!this.isAdActive && labelText === '') {
+      return;
+    }
+
+    // The prefix span is styled dimmer (`media-label-prefix`); the rest is plain text.
     const prefixSpan = document.createElement('span');
     const prefixPart: AudioControlsPart = 'media-label-prefix';
     prefixSpan.setAttribute('part', prefixPart);
@@ -661,14 +843,27 @@ export class PlayerstackAudioControls extends PlayerstackElement {
     const container = document.createElement('div');
     container.setAttribute('part', containerPart);
 
-    container.appendChild(this.buildSkipButton('back'));
+    // Canonical transport order: prev → skip-back → play → skip-forward → next → content-area →
+    // time. Prev sits beside skip-back (left) and next beside skip-forward, so enabling nav puts
+    // the buttons next to the skip affordances (not off to the right of the bar).
+    this.prevButton = this.buildNavButton('prev');
+    this.nextButton = this.buildNavButton('next');
+    this.skipBackButton = this.buildSkipButton('back');
+    this.skipForwardButton = this.buildSkipButton('forward');
+    container.appendChild(this.prevButton);
+    container.appendChild(this.skipBackButton);
     container.appendChild(this.buildPlayButton());
-    container.appendChild(this.buildSkipButton('forward'));
+    container.appendChild(this.skipForwardButton);
+    container.appendChild(this.nextButton);
     container.appendChild(this.buildContentArea());
     container.appendChild(this.buildTimeReadout());
 
     this.container = container;
     this.root.appendChild(container);
+
+    // Reflect the initial skip/nav button presence.
+    this.updateSkipVisibility();
+    this.updateNavVisibility();
 
     // Paint from whatever state the store already delivered (context may resolve before render).
     const state = this.store?.getState();
@@ -699,6 +894,32 @@ export class PlayerstackAudioControls extends PlayerstackElement {
       const delta = direction === 'back' ? -SKIP_SECONDS : SKIP_SECONDS;
       const next = Math.max(0, Math.min(this.audioState.duration, this.audioState.seek + delta));
       this.dispatchRequest<SeekRequestDetail>('playerstack-seek-request', { time: next });
+    };
+    button.addEventListener('click', onClick);
+    this.addDisposer(() => button.removeEventListener('click', onClick));
+    return button;
+  }
+
+  /**
+   * Builds a playlist-nav button (previous/next). It expresses intent only, emitting the
+   * adapter-extensible `playerstack-prev-request`/`playerstack-next-request` (parity with
+   * `playerstack-nav-buttons`); the skin routes it to the consumer's `onPrevious`/`onNext`.
+   * Disabled during an ad (no playlist navigation while the pre-roll plays).
+   */
+  private buildNavButton(direction: 'prev' | 'next'): HTMLButtonElement {
+    const button = document.createElement('button');
+    const part: AudioControlsPart = direction === 'prev' ? 'prev-button' : 'next-button';
+    button.setAttribute('part', part);
+    button.setAttribute('type', 'button');
+    button.setAttribute('aria-label', direction === 'prev' ? 'Previous' : 'Next');
+    const icon = document.createElement('span');
+    icon.className = 'icon';
+    icon.innerHTML = renderSvgFromDescriptor(direction === 'prev' ? previousTrackIcon : nextTrackIcon);
+    button.appendChild(icon);
+
+    const onClick = (): void => {
+      if (this.isAdActive) return;
+      this.dispatchRequest(direction === 'prev' ? 'playerstack-prev-request' : 'playerstack-next-request');
     };
     button.addEventListener('click', onClick);
     this.addDisposer(() => button.removeEventListener('click', onClick));

@@ -185,6 +185,7 @@ export {
   DEFAULT_COMPOSITION,
   AUDIO_DEFAULT_COMPOSITION,
   resolveSlotOrder,
+  acceptsKeepVisible,
 } from '@adapters/framework-adapter';
 export type { SlotRegion, ComposableSlot } from '@adapters/framework-adapter';
 

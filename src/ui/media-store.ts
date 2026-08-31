@@ -46,6 +46,16 @@ export function createMediaStore(initial?: Partial<MediaStoreState>): MediaStore
 
     subscribe(listener: MediaStoreListener): () => void {
       listeners.add(listener);
+      // Push the CURRENT state to the new listener immediately (standard reactive-store
+      // contract). Without this, a subscriber only ever hears the NEXT `set(...)`, so a
+      // UI_Element that (re)subscribes after the last state change — e.g. one that
+      // disconnected/reconnected when its control was moved between containers — would keep
+      // its `data-*` attributes unset until some unrelated state change happened. That left
+      // value-gated Style_Layer rules (e.g. `[data-muted='true']`/`[data-muted='false']`)
+      // matching NEITHER branch, so both the muted and unmuted glyphs showed at once (the
+      // "duplicated icons" bug). Emitting the snapshot on subscribe makes every reconnected
+      // element reflect the correct state right away.
+      listener(state);
       // Return an unsubscribe function that removes exactly this listener.
       return () => {
         listeners.delete(listener);

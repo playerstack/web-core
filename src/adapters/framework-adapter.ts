@@ -212,6 +212,10 @@ export const UI_ELEMENT_BINDINGS: readonly UiElementBinding[] = [
       'playerstack-play-request',
       'playerstack-pause-request',
       'playerstack-seek-request',
+      // Playlist nav (prev/next) now lives INSIDE the bar next to the skip buttons, so the bar
+      // emits these adapter-extensible intents (mirrors `playerstack-nav-buttons`).
+      'playerstack-prev-request',
+      'playerstack-next-request',
       'playerstack-ad-skip',
       'playerstack-ad-click',
     ],
@@ -335,6 +339,17 @@ export interface ComposableSlot {
    * enforces the SAME rule from one source of truth (A6/A7).
    */
   readonly allowedContainers?: readonly string[];
+  /**
+   * Whether this part RIDES the timeline slider instead of owning its own element. The timeline
+   * riders (`Chapters`/`Heatmap`) paint their content ON the `playerstack-time-slider` (the
+   * `Timeline` part) — they are passed as props onto that slider and have no element of their own.
+   * Because of that their on-screen visibility is governed entirely by the `Timeline` they ride
+   * on, so they do NOT accept an independent `keepVisible` (auto-hide opt-out): a `keepVisible` on
+   * a rider would be inert. `Timeline` itself is NOT flagged — it IS the host slider and DOES
+   * accept `keepVisible`. Agnostic data, single source of truth (A6/A7) consumed via
+   * `acceptsKeepVisible` so every skin enforces the identical rule.
+   */
+  readonly ridesTimeline?: boolean;
 }
 
 /**
@@ -440,6 +455,9 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
     // is inert for audio and does not affect the audio default membership.
     inDefaultAudio: true,
     allowedContainers: ['BottomBar'],
+    // Rides the timeline slider (paints via the `chapters` prop on `playerstack-time-slider`), so
+    // its visibility follows the `Timeline`'s keep-visible — it does NOT accept `keepVisible`.
+    ridesTimeline: true,
   },
   {
     name: 'Heatmap',
@@ -448,6 +466,9 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
     order: 102,
     inDefault: false,
     allowedContainers: ['BottomBar'],
+    // Rides the timeline slider (paints via the `heatmapData` prop on `playerstack-time-slider`),
+    // so its visibility follows the `Timeline`'s keep-visible — it does NOT accept `keepVisible`.
+    ridesTimeline: true,
   },
   // `CaptionsToggle` is a skin-owned `<button>` (A2 promotion candidate: playerstack-captions-toggle).
   { name: 'CaptionsToggle', element: null, region: 'control-bar-right', order: 110, inDefault: true },
@@ -496,6 +517,12 @@ export const COMPOSABLE_SLOTS: readonly ComposableSlot[] = [
     inDefault: false,
     inDefaultAudio: true,
   },
+  // `Time` is an audio-exclusive presence marker for the remaining-time read-out (`part="time"`)
+  // that lives INSIDE `playerstack-audio-controls` (element: null — no standalone node of its own,
+  // mirroring SkipBack/SkipForward). Present ⇒ the bar shows the read-out; absent ⇒ the skin sets
+  // `showTime={false}` and the element hides it. In the audio default (`inDefaultAudio: true`), so
+  // a bare `<AudioPlayer/>` still shows the time. Order 220 keeps it in the audio 200+ band.
+  { name: 'Time', element: null, region: 'control-bar', order: 220, inDefault: false, inDefaultAudio: true },
 ];
 
 /**
@@ -532,6 +559,27 @@ export function resolveSlotOrder(names: readonly string[]): string[] {
   return names
     .filter((name) => orderByName.has(name))
     .sort((a, b) => (orderByName.get(a) ?? 0) - (orderByName.get(b) ?? 0));
+}
+
+/**
+ * Set of part names that RIDE the timeline slider (flagged `ridesTimeline` in the catalog) and
+ * therefore do NOT own their own element. Built once from the catalog so the rule has a single
+ * source of truth (A6/A7): today `Chapters`/`Heatmap`.
+ */
+const RIDES_TIMELINE_NAMES = new Set<string>(
+  COMPOSABLE_SLOTS.filter((slot) => slot.ridesTimeline === true).map((slot) => slot.name),
+);
+
+/**
+ * Whether a composable part accepts the `keepVisible` (auto-hide opt-out) prop. Parts that RIDE
+ * another part's element (currently the timeline riders `Chapters`/`Heatmap`, flagged
+ * `ridesTimeline`) do NOT: they paint on the `Timeline` slider and have no element of their own,
+ * so their visibility follows the `Timeline`'s keep-visible, not an independent flag. Every other
+ * part accepts it. Unknown names default to `true` (permissive). Pure + framework-agnostic (A1)
+ * so every skin enforces the same rule from one source of truth (A6/A7).
+ */
+export function acceptsKeepVisible(name: string): boolean {
+  return !RIDES_TIMELINE_NAMES.has(name);
 }
 
 /**
